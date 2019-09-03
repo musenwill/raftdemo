@@ -10,8 +10,9 @@ type nodeIndex struct {
 }
 
 type Leader struct {
-	*Server // embed server
-	nIndex  map[string]nodeIndex
+	*Server       // embed server
+	nIndex        map[string]nodeIndex
+	stopReplicate chan bool
 }
 
 func NewLeader(s *Server, conf *config.Config) *Leader {
@@ -19,7 +20,7 @@ func NewLeader(s *Server, conf *config.Config) *Leader {
 	for _, n := range conf.Nodes {
 		nIndex[n.ID] = nodeIndex{}
 	}
-	return &Leader{s, nIndex}
+	return &Leader{s, nIndex, nil}
 }
 
 func (p *Leader) implStateInterface() {
@@ -27,19 +28,38 @@ func (p *Leader) implStateInterface() {
 }
 
 func (p *Leader) enterState() {
+	p.resetTimer()
+	if p.stopReplicate != nil {
+		close(p.stopReplicate)
+	}
+	p.stopReplicate = nil
 }
 
 func (p *Leader) leaveState() {
+	if p.stopReplicate != nil {
+		close(p.stopReplicate)
+	}
+	p.stopReplicate = nil
 }
 
 func (p *Leader) onAppendEntries(param proxy.AppendEntries) proxy.Response {
-	return proxy.Response{}
+	if param.Term <= p.currentTerm {
+		return proxy.Response{Term: p.currentTerm, Success: false}
+	} else {
+		p.transferState(NewFollower(p.Server, p.config))
+		return p.onAppendEntries(param)
+	}
 }
 
 func (p *Leader) onRequestVote(param proxy.RequestVote) proxy.Response {
-	return proxy.Response{}
+	if param.Term <= p.currentTerm {
+		return proxy.Response{Term: p.currentTerm, Success: false}
+	} else {
+		p.transferState(NewFollower(p.Server, p.config))
+		return p.onRequestVote(param)
+	}
 }
 
 func (p *Leader) timeout() {
-
+	p.resetTimer()
 }
