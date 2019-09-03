@@ -1,7 +1,7 @@
 package fsm
 
 type nodeIndex struct {
-	nextIndex, matchIndex int
+	nextIndex, matchIndex int64
 }
 
 type Leader struct {
@@ -9,7 +9,7 @@ type Leader struct {
 	nIndex  map[string]nodeIndex
 }
 
-func NewLeader(s *Server, config Config) *Leader {
+func NewLeader(s *Server, config *Config) *Leader {
 	nIndex := make(map[string]nodeIndex)
 	for _, n := range config.Nodes {
 		nIndex[n.ID] = nodeIndex{}

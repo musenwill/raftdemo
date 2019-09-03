@@ -4,7 +4,7 @@ type Candidate struct {
 	*Server // embed server
 }
 
-func NewCandidate(s *Server, config Config) *Candidate {
+func NewCandidate(s *Server, config *Config) *Candidate {
 	return &Candidate{s}
 }
 

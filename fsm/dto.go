@@ -3,26 +3,26 @@ package fsm
 type Log struct {
 	RequestID   string
 	CandidateID string
-	Term        int
+	Term        int64
 }
 
 type AppendEntries struct {
-	Term         int
+	Term         int64
 	LeaderID     string
-	PrevLogIndex int
-	prevLogTerm  int
-	LeaderCommit int
+	PrevLogIndex int64
+	prevLogTerm  int64
+	LeaderCommit int64
 	Entries      []Log
 }
 
 type RequestVote struct {
-	Term         int
+	Term         int64
 	CandidateID  string
-	LastLogIndex int
-	LastLogTerm  int
+	LastLogIndex int64
+	LastLogTerm  int64
 }
 
 type Response struct {
-	Term    int
+	Term    int64
 	Success bool
 }

@@ -2,6 +2,7 @@ package fsm
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
@@ -16,39 +17,28 @@ type Server struct {
 	id       string
 	votedFor string
 
-	currentTerm int
-	commitIndex int
-	lastAplied  int
+	currentTerm int64
+	commitIndex int64
+	lastAplied  int64
 	timer       *time.Timer
 	logs        []*Log
 
-	config Config
+	config *Config
 
-	currentState   State
-	followerState  State
-	candidateState State
-	leaderState    State
+	currentState State
 }
 
-func NewServer(id string, config Config) *Server {
+func NewServer(id string, config *Config) *Server {
 	s := &Server{
 		id:     id,
 		logs:   make([]*Log, 0),
 		config: config,
 	}
 
-	s.checkConfig(&config)
-
-	followerState := NewFollower(s, config)
-	candidateState := NewCandidate(s, config)
-	leaderState := NewLeader(s, config)
-
-	s.followerState = followerState
-	s.candidateState = candidateState
-	s.leaderState = leaderState
+	s.checkConfig(config)
 
 	// initial state is follower
-	s.currentState = s.followerState
+	s.currentState = NewFollower(s, config)
 	s.currentState.enterState()
 
 	return s
@@ -63,7 +53,12 @@ func (p *Server) resetTimer() {
 }
 
 func (p *Server) randomResetTimer() {
-
+	randTime := int(float64(p.config.Timeout) * 1.5)
+	if p.timer == nil {
+		p.timer = time.NewTimer(time.Duration(randTime) * time.Millisecond)
+	} else {
+		p.timer.Reset(time.Duration(randTime) * time.Millisecond)
+	}
 }
 
 func (p *Server) checkConfig(config *Config) {
@@ -87,4 +82,16 @@ func (p *Server) checkConfig(config *Config) {
 			set[id.ID] = true
 		}
 	}
+}
+
+func (p *Server) getCommitIndex() int64 {
+	return atomic.LoadInt64(&p.commitIndex)
+}
+
+func (p *Server) setCommitIndex(i int64) {
+	atomic.StoreInt64(&p.commitIndex, i)
+}
+
+func (p *Server) lastLogIndex() int64 {
+	return int64(len(p.logs) - 1)
 }
