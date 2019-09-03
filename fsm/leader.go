@@ -1,5 +1,10 @@
 package fsm
 
+import (
+	"github.com/musenwill/raftdemo/config"
+	"github.com/musenwill/raftdemo/proxy"
+)
+
 type nodeIndex struct {
 	nextIndex, matchIndex int64
 }
@@ -9,9 +14,9 @@ type Leader struct {
 	nIndex  map[string]nodeIndex
 }
 
-func NewLeader(s *Server, config *Config) *Leader {
+func NewLeader(s *Server, conf *config.Config) *Leader {
 	nIndex := make(map[string]nodeIndex)
-	for _, n := range config.Nodes {
+	for _, n := range conf.Nodes {
 		nIndex[n.ID] = nodeIndex{}
 	}
 	return &Leader{s, nIndex}
@@ -22,15 +27,17 @@ func (p *Leader) implStateInterface() {
 }
 
 func (p *Leader) enterState() {
-
 }
 
-func (p *Leader) onAppendEntries(param AppendEntries) Response {
-	return Response{}
+func (p *Leader) leaveState() {
 }
 
-func (p *Leader) onRequestVote(param RequestVote) Response {
-	return Response{}
+func (p *Leader) onAppendEntries(param proxy.AppendEntries) proxy.Response {
+	return proxy.Response{}
+}
+
+func (p *Leader) onRequestVote(param proxy.RequestVote) proxy.Response {
+	return proxy.Response{}
 }
 
 func (p *Leader) timeout() {

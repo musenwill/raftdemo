@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"sync/atomic"
 	"time"
+
+	"github.com/musenwill/raftdemo/config"
+	"github.com/musenwill/raftdemo/proxy"
 )
 
 type State interface {
 	enterState()
-	onAppendEntries(param AppendEntries) Response
-	onRequestVote(param RequestVote) Response
+	leaveState()
+	onAppendEntries(param proxy.AppendEntries) proxy.Response
+	onRequestVote(param proxy.RequestVote) proxy.Response
 	timeout()
 }
 
@@ -21,27 +25,33 @@ type Server struct {
 	commitIndex int64
 	lastAplied  int64
 	timer       *time.Timer
-	logs        []*Log
+	logs        []*proxy.Log
 
-	config *Config
+	config *config.Config
 
 	currentState State
 }
 
-func NewServer(id string, config *Config) *Server {
+func NewServer(id string, config *config.Config) *Server {
 	s := &Server{
 		id:     id,
-		logs:   make([]*Log, 0),
+		logs:   make([]*proxy.Log, 0),
 		config: config,
 	}
 
 	s.checkConfig(config)
 
 	// initial state is follower
-	s.currentState = NewFollower(s, config)
-	s.currentState.enterState()
-
+	s.transferState(NewFollower(s, config))
 	return s
+}
+
+func (p *Server) transferState(state State) {
+	if p.currentState != nil {
+		p.currentState.leaveState()
+	}
+	p.currentState = state
+	p.currentState.enterState()
 }
 
 func (p *Server) resetTimer() {
@@ -61,7 +71,7 @@ func (p *Server) randomResetTimer() {
 	}
 }
 
-func (p *Server) checkConfig(config *Config) {
+func (p *Server) checkConfig(config *config.Config) {
 	if config.Timeout <= 0 {
 		panic(fmt.Sprintf("invalid timeout %v, expected greater than 0", config.Timeout))
 	}
@@ -76,7 +86,7 @@ func (p *Server) checkConfig(config *Config) {
 	}
 	set := make(map[string]bool)
 	for _, id := range config.Nodes {
-		if ok := set[id.ID]; ok {
+		if _, ok := set[id.ID]; ok {
 			panic("duplicate nodes")
 		} else {
 			set[id.ID] = true

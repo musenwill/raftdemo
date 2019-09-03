@@ -1,11 +1,16 @@
 package fsm
 
+import (
+	"github.com/musenwill/raftdemo/config"
+	"github.com/musenwill/raftdemo/proxy"
+)
+
 type Follower struct {
 	*Server  // embed server
 	leaderID string
 }
 
-func NewFollower(s *Server, config *Config) *Follower {
+func NewFollower(s *Server, conf *config.Config) *Follower {
 	return &Follower{s, ""}
 }
 
@@ -18,20 +23,23 @@ func (p *Follower) enterState() {
 	p.votedFor = ""
 }
 
-func (p *Follower) onAppendEntries(param AppendEntries) Response {
+func (p *Follower) leaveState() {
+}
+
+func (p *Follower) onAppendEntries(param proxy.AppendEntries) proxy.Response {
 	p.resetTimer()
 
 	// 1. reply false if term < currentTerm
 	if param.Term < p.currentTerm {
-		return Response{Term: p.currentTerm, Success: false}
+		return proxy.Response{Term: p.currentTerm, Success: false}
 	}
 	p.currentTerm = param.Term
 	p.leaderID = param.LeaderID
 
 	// 2. reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm
 	if param.PrevLogIndex >= 0 {
-		if param.PrevLogIndex > p.lastLogIndex() || p.logs[param.PrevLogIndex].Term != param.prevLogTerm {
-			return Response{Term: p.currentTerm, Success: false}
+		if param.PrevLogIndex > p.lastLogIndex() || p.logs[param.PrevLogIndex].Term != param.PrevLogTerm {
+			return proxy.Response{Term: p.currentTerm, Success: false}
 		}
 	}
 
@@ -57,14 +65,14 @@ func (p *Follower) onAppendEntries(param AppendEntries) Response {
 		p.setCommitIndex(newIndex)
 	}
 
-	return Response{Term: p.currentTerm, Success: true}
+	return proxy.Response{Term: p.currentTerm, Success: true}
 }
 
-func (p *Follower) onRequestVote(param RequestVote) Response {
+func (p *Follower) onRequestVote(param proxy.RequestVote) proxy.Response {
 	p.resetTimer()
 
 	if param.Term < p.currentTerm {
-		return Response{Term: p.currentTerm, Success: false}
+		return proxy.Response{Term: p.currentTerm, Success: false}
 	}
 
 	// a new round of election
@@ -75,23 +83,22 @@ func (p *Follower) onRequestVote(param RequestVote) Response {
 
 	// have vote for other candidate in this term
 	if len(p.votedFor) > 0 && p.votedFor != param.CandidateID {
-		return Response{Term: p.currentTerm, Success: false}
+		return proxy.Response{Term: p.currentTerm, Success: false}
 	}
 
 	if param.LastLogIndex <= p.lastLogIndex() {
 		if param.LastLogIndex >= 0 && p.logs[param.LastLogIndex].Term != param.Term {
-			return Response{Term: p.currentTerm, Success: false}
+			return proxy.Response{Term: p.currentTerm, Success: false}
 		}
 	} else {
-		return Response{Term: p.currentTerm, Success: false}
+		return proxy.Response{Term: p.currentTerm, Success: false}
 	}
 
 	p.votedFor = param.CandidateID
 
-	return Response{Term: p.currentTerm, Success: true}
+	return proxy.Response{Term: p.currentTerm, Success: true}
 }
 
 func (p *Follower) timeout() {
-	p.currentState = NewCandidate(p.Server, p.config)
-	p.currentState.enterState()
+	p.transferState(NewCandidate(p.Server, p.config))
 }

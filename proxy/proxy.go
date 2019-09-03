@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"github.com/musenwill/raftdemo/config"
@@ -48,7 +50,7 @@ func Config(nodes []config.Node) {
 	}
 
 	// add all new joined nodes
-	for k, _ := range nodeSet {
+	for k := range nodeSet {
 		if _, ok := router[k]; !ok {
 			e := endpoint{
 				appendEntries: appendEntriesEndpoint{
@@ -65,24 +67,42 @@ func Config(nodes []config.Node) {
 	}
 }
 
-func SendAppendEntries(nodeID string, request AppendEntries) (Response, error) {
+func SendAppendEntries(ctx context.Context, nodeID string, request AppendEntries) (Response, error) {
 	e, ok := router[nodeID]
 	if !ok {
 		return Response{}, fmt.Errorf("node with id %v not exist", nodeID)
 	}
 
-	e.appendEntries.request <- request
-	return <-e.appendEntries.response, nil
+	select {
+	case <-ctx.Done():
+		return Response{}, errors.New("append entries send request canceled")
+	case e.appendEntries.request <- request:
+		select {
+		case <-ctx.Done():
+			return Response{}, errors.New("append entries get response canceled")
+		case response := <-e.appendEntries.response:
+			return response, nil
+		}
+	}
 }
 
-func SendRequestVote(nodeID string, request RequestVote) (Response, error) {
+func SendRequestVote(ctx context.Context, nodeID string, request RequestVote) (Response, error) {
 	e, ok := router[nodeID]
 	if !ok {
 		return Response{}, fmt.Errorf("node with id %v not exist", nodeID)
 	}
 
-	e.requestVote.request <- request
-	return <-e.requestVote.response, nil
+	select {
+	case <-ctx.Done():
+		return Response{}, errors.New("request vote send request canceled")
+	case e.requestVote.request <- request:
+		select {
+		case <-ctx.Done():
+			return Response{}, errors.New("request vote get response canceled")
+		case response := <-e.requestVote.response:
+			return response, nil
+		}
+	}
 }
 
 func HandleAppendEntries(nodeID string, h AppendEntriesHandler) error {
