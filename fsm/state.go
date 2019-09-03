@@ -25,7 +25,7 @@ type Server struct {
 	commitIndex int64
 	lastAplied  int64
 	timer       *time.Timer
-	logs        []*proxy.Log
+	logs        []proxy.Log
 
 	config *config.Config
 
@@ -34,9 +34,12 @@ type Server struct {
 
 func NewServer(id string, config *config.Config) *Server {
 	s := &Server{
-		id:     id,
-		logs:   make([]*proxy.Log, 0),
-		config: config,
+		id:          id,
+		currentTerm: 0,
+		commitIndex: -1, // in raft paper, an valid index begin with 1 in no empty logs. but in program, valid index usually begin with 0
+		lastAplied:  -1, // similar to commitIndex
+		logs:        make([]proxy.Log, 0),
+		config:      config,
 	}
 
 	s.checkConfig(config)

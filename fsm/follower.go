@@ -36,24 +36,21 @@ func (p *Follower) onAppendEntries(param proxy.AppendEntries) proxy.Response {
 	p.currentTerm = param.Term
 	p.leaderID = param.LeaderID
 
-	// 2. reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm
-	if param.PrevLogIndex >= 0 {
-		if param.PrevLogIndex > p.lastLogIndex() || p.logs[param.PrevLogIndex].Term != param.PrevLogTerm {
-			return proxy.Response{Term: p.currentTerm, Success: false}
+	// not a heartbeat request
+	if len(param.Entries) > 0 {
+		// 2. reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm
+		if param.PrevLogIndex >= 0 {
+			if param.PrevLogIndex > p.lastLogIndex() || p.logs[param.PrevLogIndex].Term != param.PrevLogTerm {
+				return proxy.Response{Term: p.currentTerm, Success: false}
+			}
 		}
-	}
 
-	if param.PrevLogIndex < p.getCommitIndex()-1 {
-		panic("AppendEntries.PrevLogIndex < Server.commitIndex - 1, this is not allowed")
-	}
+		// 3. if an existing entry conflicts with a new one (same index but different terms),
+		//    delete the existing entry and all that follow it
+		p.logs = p.logs[:param.PrevLogIndex+1]
 
-	// 3. if an existing entry conflicts with a new one (same index but different terms),
-	//    delete the existing entry and all that follow it
-	p.logs = p.logs[:param.PrevLogIndex+1]
-
-	// 4. Append any new entries not already in the log
-	for _, g := range param.Entries {
-		p.logs = append(p.logs, &g)
+		// 4. Append any new entries not already in the log
+		p.logs = append(p.logs, param.Entries...)
 	}
 
 	// 5. if leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
@@ -86,16 +83,18 @@ func (p *Follower) onRequestVote(param proxy.RequestVote) proxy.Response {
 		return proxy.Response{Term: p.currentTerm, Success: false}
 	}
 
-	if param.LastLogIndex <= p.lastLogIndex() {
-		if param.LastLogIndex >= 0 && p.logs[param.LastLogIndex].Term != param.Term {
+	if p.lastLogIndex() >= 0 {
+		if p.logs[p.lastLogIndex()].Term > param.LastLogTerm {
 			return proxy.Response{Term: p.currentTerm, Success: false}
 		}
-	} else {
-		return proxy.Response{Term: p.currentTerm, Success: false}
+		if p.logs[p.lastLogIndex()].Term == param.LastLogTerm {
+			if p.lastLogIndex() > param.LastLogIndex {
+				return proxy.Response{Term: p.currentTerm, Success: false}
+			}
+		}
 	}
 
 	p.votedFor = param.CandidateID
-
 	return proxy.Response{Term: p.currentTerm, Success: true}
 }
 

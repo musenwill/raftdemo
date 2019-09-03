@@ -26,7 +26,7 @@ func (p *Candidate) enterState() {
 	if p.stopElection != nil {
 		close(p.stopElection)
 	}
-	p.stopElection = nil
+	p.stopElection = make(chan bool)
 }
 
 func (p *Candidate) leaveState() {
@@ -59,15 +59,14 @@ func (p *Candidate) timeout() {
 
 	p.currentTerm += 1
 	p.votedFor = p.id
-	p.stopElection = make(chan bool)
-	vote := make(chan bool)
 
+	vote := make(chan bool)
 	go p.countVote(vote)
 	go p.canvass(vote)
 }
 
 func (p *Candidate) countVote(vote chan bool) {
-	count := 1 // 1 for self vote
+	count := 1 // add self in firstly
 	for {
 		select {
 		case <-p.stopElection:
@@ -101,7 +100,7 @@ func (p *Candidate) canvass(vote chan bool) {
 	wg := &sync.WaitGroup{}
 	wg.Add(len(p.config.Nodes))
 
-	for range p.config.Nodes {
+	for _, node := range p.config.Nodes {
 		select {
 		case <-p.stopElection:
 			return
@@ -109,7 +108,18 @@ func (p *Candidate) canvass(vote chan bool) {
 			go func() {
 				defer wg.Done()
 
-				response, err := proxy.SendRequestVote(ctx, p.id, proxy.RequestVote{})
+				var lastLogTerm int64 = 0
+				lastLogIndex := p.lastLogIndex()
+				if lastLogIndex >= 0 {
+					lastLogTerm = p.logs[lastLogIndex].Term
+				}
+
+				request := proxy.RequestVote{
+					Term:         p.currentTerm,
+					CandidateID:  p.id,
+					LastLogIndex: lastLogIndex,
+					LastLogTerm:  lastLogTerm}
+				response, err := proxy.SendRequestVote(ctx, node.ID, request)
 				if err != nil {
 					// log it
 					return

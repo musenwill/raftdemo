@@ -5,6 +5,7 @@ type Node struct {
 }
 
 type Config struct {
-	Nodes   []Node
-	Timeout int // append entries timeout, ms
+	Nodes        []Node
+	Timeout      int // append entries timeout, ms
+	MaxReplicate int
 }

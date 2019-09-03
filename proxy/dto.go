@@ -1,9 +1,9 @@
 package proxy
 
 type Log struct {
-	RequestID   string
-	CandidateID string
-	Term        int64
+	RequestID string
+	Command   string
+	Term      int64
 }
 
 type AppendEntries struct {
