@@ -6,6 +6,7 @@ import (
 
 	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/proxy"
+	"go.uber.org/zap"
 )
 
 type nodeIndex struct {
@@ -16,6 +17,7 @@ type Leader struct {
 	*Server       // embed server
 	nIndex        map[string]*nodeIndex
 	stopReplicate chan bool
+	stateLogger   *zap.SugaredLogger
 }
 
 func NewLeader(s *Server, conf *config.Config) *Leader {
@@ -26,7 +28,7 @@ func NewLeader(s *Server, conf *config.Config) *Leader {
 			nIndex[n.ID] = &nodeIndex{nextIndex: lastLogIndex + 1, matchIndex: 0}
 		}
 	}
-	return &Leader{s, nIndex, nil}
+	return &Leader{s, nIndex, nil, s.logger.With("state", "leader")}
 }
 
 func (p *Leader) implStateInterface() {
@@ -42,6 +44,7 @@ func (p *Leader) initState() {
 }
 
 func (p *Leader) enterState() {
+	p.stateLogger.Info("enter state")
 	p.initState()
 	p.heartbeatJob()
 }
@@ -51,6 +54,7 @@ func (p *Leader) leaveState() {
 		close(p.stopReplicate)
 	}
 	p.stopReplicate = nil
+	p.stateLogger.Info("leave state")
 }
 
 func (p *Leader) onAppendEntries(param proxy.AppendEntries) proxy.Response {
@@ -73,6 +77,7 @@ func (p *Leader) onRequestVote(param proxy.RequestVote) proxy.Response {
 
 func (p *Leader) timeout() {
 	p.resetTimer()
+	p.job(p.replicate)
 }
 
 func (p *Leader) heartbeatJob() {
@@ -122,6 +127,7 @@ func (p *Leader) heartbeat(ctx context.Context, wg *sync.WaitGroup, nodeID strin
 	}
 }
 
+// @TODO: to be optimized
 func (p *Leader) replicate(ctx context.Context, wg *sync.WaitGroup, nodeID string) {
 	defer wg.Done()
 
@@ -186,5 +192,4 @@ func (p *Leader) replicate(ctx context.Context, wg *sync.WaitGroup, nodeID strin
 			}
 		}
 	}
-
 }

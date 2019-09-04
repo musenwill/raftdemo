@@ -1,0 +1,12 @@
+{}
+{}
+{"url":"http://example.com","attempt":3,"backoff":1}
+{}
+{"url":"http://example.com","attempt":3,"backoff":1}
+{}
+{"url":"http://example.com","attempt":3,"backoff":1}
+{}
+{}
+{"node":"node-1","url":"http://example.com","attempt":3,"backoff":1}
+{"node":"node-1"}
+{"node":"node-1"}

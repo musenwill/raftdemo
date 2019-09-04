@@ -105,20 +105,75 @@ func SendRequestVote(ctx context.Context, nodeID string, request RequestVote) (R
 	}
 }
 
-func HandleAppendEntries(nodeID string, h AppendEntriesHandler) error {
+func HandleAppendEntries(ctx context.Context, nodeID string, h AppendEntriesHandler) error {
 	e, ok := router[nodeID]
 	if !ok {
 		return fmt.Errorf("node with id %v not exist", nodeID)
 	}
-	e.appendEntries.response <- h(<-e.appendEntries.request)
+
+	select {
+	case <-ctx.Done():
+		return errors.New("append entries handler canceled")
+	case request := <-e.appendEntries.request:
+		select {
+		case <-ctx.Done():
+			return errors.New("append entries handler canceled")
+		case e.appendEntries.response <- h(request):
+		}
+	}
 	return nil
 }
 
-func HandleRequestVote(nodeID string, h RequestVoteHandler) error {
+func HandleRequestVote(ctx context.Context, nodeID string, h RequestVoteHandler) error {
 	e, ok := router[nodeID]
 	if !ok {
 		return fmt.Errorf("node with id %v not exist", nodeID)
 	}
-	e.requestVote.response <- h(<-e.requestVote.request)
+
+	select {
+	case <-ctx.Done():
+		return errors.New("request vote handler canceled")
+	case request := <-e.requestVote.request:
+		select {
+		case <-ctx.Done():
+			return errors.New("request vote handler canceled")
+		case e.requestVote.response <- h(request):
+		}
+	}
 	return nil
+}
+
+func AppendEntriesRequestReader(nodeID string) <-chan AppendEntries {
+	e, _ := router[nodeID]
+	return e.appendEntries.request
+}
+func AppendEntriesRequestSender(nodeID string) chan<- AppendEntries {
+	e, _ := router[nodeID]
+	return e.appendEntries.request
+}
+func AppendEntriesResponseReader(nodeID string) <-chan Response {
+	e, _ := router[nodeID]
+	return e.appendEntries.response
+}
+func AppendEntriesResponseSender(nodeID string) chan<- Response {
+	e, _ := router[nodeID]
+	return e.appendEntries.response
+}
+
+func RequestVoteRequestReader(nodeID string) <-chan RequestVote {
+	e, _ := router[nodeID]
+	return e.requestVote.request
+}
+func RequestVoteRequestSender(nodeID string) chan<- RequestVote {
+	e, _ := router[nodeID]
+	return e.requestVote.request
+}
+
+func RequestVoteResponseSender(nodeID string) chan<- Response {
+	e, _ := router[nodeID]
+	return e.requestVote.response
+}
+func RequestVoteResponseReader(nodeID string) <-chan Response {
+	e, _ := router[nodeID]
+	return e.requestVote.response
 }

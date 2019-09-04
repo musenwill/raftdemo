@@ -1,20 +1,21 @@
 package fsm
 
 import (
-	"context"
 	"sync"
 
 	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/proxy"
+	"go.uber.org/zap"
 )
 
 type Candidate struct {
 	*Server      // embed server
 	stopElection chan bool
+	stateLogger  *zap.SugaredLogger
 }
 
 func NewCandidate(s *Server, config *config.Config) *Candidate {
-	return &Candidate{s, nil}
+	return &Candidate{s, nil, s.logger.With("state", "candidate")}
 }
 
 func (p *Candidate) implStateInterface() {
@@ -22,6 +23,7 @@ func (p *Candidate) implStateInterface() {
 }
 
 func (p *Candidate) enterState() {
+	p.stateLogger.Info("enter state")
 	p.randomResetTimer()
 	if p.stopElection != nil {
 		close(p.stopElection)
@@ -34,6 +36,7 @@ func (p *Candidate) leaveState() {
 		close(p.stopElection)
 	}
 	p.stopElection = nil
+	p.stateLogger.Info("leave state")
 }
 
 func (p *Candidate) onAppendEntries(param proxy.AppendEntries) proxy.Response {
@@ -86,53 +89,46 @@ func (p *Candidate) countVote(vote chan bool) {
 	}
 }
 
-// @TODO: to be optimized
 func (p *Candidate) canvass(vote chan bool) {
 	defer close(vote)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	// make sure jobs are canceled when election timeout
-	go func() {
-		<-p.stopElection
-		cancel()
-	}()
 
 	wg := &sync.WaitGroup{}
 	wg.Add(len(p.config.Nodes))
 
-	for _, node := range p.config.Nodes {
-		select {
-		case <-p.stopElection:
-			return
-		default:
-			go func() {
-				defer wg.Done()
+	for _, n := range p.config.Nodes {
+		node := n
+		go func() {
+			wg.Done()
 
-				var lastLogTerm int64 = 0
-				lastLogIndex := p.lastLogIndex()
-				if lastLogIndex >= 0 {
-					lastLogTerm = p.logs[lastLogIndex].Term
-				}
+			var lastLogTerm int64 = 0
+			lastLogIndex := p.lastLogIndex()
+			if lastLogIndex >= 0 {
+				lastLogTerm = p.logs[lastLogIndex].Term
+			}
+			request := proxy.RequestVote{
+				Term:         p.currentTerm,
+				CandidateID:  p.id,
+				LastLogIndex: lastLogIndex,
+				LastLogTerm:  lastLogTerm}
 
-				request := proxy.RequestVote{
-					Term:         p.currentTerm,
-					CandidateID:  p.id,
-					LastLogIndex: lastLogIndex,
-					LastLogTerm:  lastLogTerm}
-				response, err := proxy.SendRequestVote(ctx, node.ID, request)
-				if err != nil {
-					// log it
+			select {
+			case <-p.stopElection:
+				return
+			case proxy.RequestVoteRequestSender(node.ID) <- request:
+				select {
+				case <-p.stopElection:
 					return
+				case response := <-proxy.RequestVoteResponseReader(node.ID):
+					if response.Term > p.currentTerm {
+						p.transferState(NewFollower(p.Server, p.config))
+						return
+					}
+					if response.Success {
+						vote <- true
+					}
 				}
-				if response.Term > p.currentTerm {
-					p.transferState(NewFollower(p.Server, p.config))
-					return
-				}
-				if response.Success {
-					vote <- true
-				}
-			}()
-		}
+			}
+		}()
 	}
 
 	wg.Wait()

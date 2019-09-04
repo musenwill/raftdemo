@@ -7,6 +7,7 @@ import (
 
 	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/proxy"
+	"go.uber.org/zap"
 )
 
 type State interface {
@@ -21,25 +22,32 @@ type Server struct {
 	id       string
 	votedFor string
 
-	currentTerm int64
-	commitIndex int64
-	lastAplied  int64
-	timer       *time.Timer
-	logs        []proxy.Log
-
-	config *config.Config
-
+	currentTerm  int64
+	commitIndex  int64
+	lastAplied   int64
+	timer        *time.Timer
+	logs         []proxy.Log
 	currentState State
+
+	commitNotifier chan bool
+	stopNotifier   chan bool
+
+	config    *config.Config
+	logger    *zap.SugaredLogger
+	committer Committer
 }
 
-func NewServer(id string, config *config.Config) *Server {
+func NewServer(id string, committer Committer, config *config.Config, logger *zap.SugaredLogger) *Server {
 	s := &Server{
-		id:          id,
-		currentTerm: 0,
-		commitIndex: -1, // in raft paper, an valid index begin with 1 in no empty logs. but in program, valid index usually begin with 0
-		lastAplied:  -1, // similar to commitIndex
-		logs:        make([]proxy.Log, 0),
-		config:      config,
+		id:             id,
+		currentTerm:    0,
+		commitIndex:    -1, // in raft paper, an valid index begin with 1 in no empty logs. but in program, valid index usually begin with 0
+		lastAplied:     -1, // similar to commitIndex
+		logs:           make([]proxy.Log, 0),
+		commitNotifier: make(chan bool),
+		config:         config,
+		logger:         logger.With("node", id),
+		committer:      committer,
 	}
 
 	s.checkConfig(config)
@@ -49,10 +57,76 @@ func NewServer(id string, config *config.Config) *Server {
 	return s
 }
 
-func (p *Server) transferState(state State) {
-	if p.currentState != nil {
-		p.currentState.leaveState()
+func (p *Server) Run() {
+	go p.commitTask()
+	p.logger.Info("start up commit task")
+	go p.fsmTask()
+	p.logger.Info("start up fsm task")
+}
+
+func (p *Server) Stop() {
+	p.transferState(NewDummyState(p, p.config))
+	p.timer.Stop()
+
+	close(p.stopNotifier)
+	p.logger.Info("stop fsm task")
+	close(p.commitNotifier)
+	p.logger.Info("stop commit task")
+}
+
+func (p *Server) fsmTask() {
+	for {
+		select {
+		case <-p.stopNotifier:
+			return
+		case <-p.timer.C:
+			p.currentState.timeout()
+			p.logger.Info("timeout")
+		case request := <-proxy.AppendEntriesRequestReader(p.id):
+			p.logger.Debugw("receive append entries request", "body", request)
+			response := p.currentState.onAppendEntries(request)
+			select {
+			case <-p.stopNotifier:
+				return
+			case <-p.timer.C:
+				p.currentState.timeout()
+				p.logger.Info("timeout")
+			case proxy.AppendEntriesResponseSender(p.id) <- response:
+				p.logger.Debugw("send append entries response", "body", response)
+			}
+		case request := <-proxy.RequestVoteRequestReader(p.id):
+			p.logger.Debugw("receive request vote request", "body", request)
+			response := p.currentState.onRequestVote(request)
+			select {
+			case <-p.stopNotifier:
+				return
+			case <-p.timer.C:
+				p.currentState.timeout()
+				p.logger.Info("timeout")
+			case proxy.RequestVoteResponseSender(p.id) <- response:
+				p.logger.Debugw("send request vote response", "body", response)
+			}
+		}
 	}
+}
+
+func (p *Server) commitTask() {
+	for {
+		<-p.commitNotifier
+		for i := p.lastAplied + 1; i <= p.commitIndex; i++ {
+			err := p.committer.Commit(p.logs[i])
+			if err != nil {
+				p.logger.Errorw("commit log error", "logIndex", i, "log", p.logs[i], "err", err)
+				break
+			}
+			p.lastAplied++
+			p.logger.Infow("succeed commit log", "logIndex", i)
+		}
+	}
+}
+
+func (p *Server) transferState(state State) {
+	p.currentState.leaveState()
 	p.currentState = state
 	p.currentState.enterState()
 }
@@ -103,6 +177,7 @@ func (p *Server) getCommitIndex() int64 {
 
 func (p *Server) setCommitIndex(i int64) {
 	atomic.StoreInt64(&p.commitIndex, i)
+	p.commitNotifier <- true
 }
 
 func (p *Server) lastLogIndex() int64 {

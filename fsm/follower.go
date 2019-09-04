@@ -3,15 +3,17 @@ package fsm
 import (
 	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/proxy"
+	"go.uber.org/zap"
 )
 
 type Follower struct {
-	*Server  // embed server
-	leaderID string
+	*Server     // embed server
+	leaderID    string
+	stateLogger *zap.SugaredLogger
 }
 
 func NewFollower(s *Server, conf *config.Config) *Follower {
-	return &Follower{s, ""}
+	return &Follower{s, "", s.logger.With("state", "follower")}
 }
 
 func (p *Follower) implStateInterface() {
@@ -19,11 +21,13 @@ func (p *Follower) implStateInterface() {
 }
 
 func (p *Follower) enterState() {
+	p.stateLogger.Info("enter state")
 	p.resetTimer()
 	p.votedFor = ""
 }
 
 func (p *Follower) leaveState() {
+	p.stateLogger.Info("leave state")
 }
 
 func (p *Follower) onAppendEntries(param proxy.AppendEntries) proxy.Response {
