@@ -2,7 +2,6 @@ package fsm
 
 import (
 	"context"
-	"sync"
 
 	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/proxy"
@@ -44,7 +43,8 @@ func (p *Leader) initState() {
 }
 
 func (p *Leader) enterState() {
-	p.stateLogger.Info("enter state")
+	p.stateLogger.Infow("enter state", "term", p.currentTerm, "voteFor", p.votedFor,
+		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 	p.initState()
 	p.heartbeatJob()
 }
@@ -54,7 +54,8 @@ func (p *Leader) leaveState() {
 		close(p.stopReplicate)
 	}
 	p.stopReplicate = nil
-	p.stateLogger.Info("leave state")
+	p.stateLogger.Infow("leave state", "term", p.currentTerm, "voteFor", p.votedFor,
+		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 }
 
 func (p *Leader) onAppendEntries(param proxy.AppendEntries) proxy.Response {
@@ -76,15 +77,19 @@ func (p *Leader) onRequestVote(param proxy.RequestVote) proxy.Response {
 }
 
 func (p *Leader) timeout() {
-	p.resetTimer()
-	p.job(p.replicate)
+	p.initState()
+	p.replicationJob()
 }
 
 func (p *Leader) heartbeatJob() {
 	p.job(p.heartbeat)
 }
 
-type jobHandler func(ctx context.Context, wg *sync.WaitGroup, nodeID string)
+func (p *Leader) replicationJob() {
+	p.job(p.replicate)
+}
+
+type jobHandler func(ctx context.Context, nodeID string)
 
 func (p *Leader) job(handler jobHandler) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -94,24 +99,20 @@ func (p *Leader) job(handler jobHandler) {
 		cancel()
 	}()
 
-	wg := &sync.WaitGroup{}
-	wg.Add(len(p.config.Nodes))
-
 	for _, node := range p.config.Nodes {
+		if node.ID == p.id {
+			continue
+		}
 		select {
 		case <-p.stopReplicate:
 			return
 		default:
-			go handler(ctx, wg, node.ID)
+			go handler(ctx, node.ID)
 		}
 	}
-
-	wg.Wait()
 }
 
-func (p *Leader) heartbeat(ctx context.Context, wg *sync.WaitGroup, nodeID string) {
-	defer wg.Done()
-
+func (p *Leader) heartbeat(ctx context.Context, nodeID string) {
 	response, err := proxy.SendAppendEntries(ctx, nodeID,
 		proxy.AppendEntries{
 			Term:         p.currentTerm,
@@ -128,9 +129,7 @@ func (p *Leader) heartbeat(ctx context.Context, wg *sync.WaitGroup, nodeID strin
 }
 
 // @TODO: to be optimized
-func (p *Leader) replicate(ctx context.Context, wg *sync.WaitGroup, nodeID string) {
-	defer wg.Done()
-
+func (p *Leader) replicate(ctx context.Context, nodeID string) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -143,13 +142,17 @@ func (p *Leader) replicate(ctx context.Context, wg *sync.WaitGroup, nodeID strin
 				if replicationBound > p.lastLogIndex()+1 {
 					replicationBound = p.lastLogIndex() + 1
 				}
+				var preLogTerm int64 = 0
+				if preLogIndex >= 0 {
+					preLogTerm = p.logs[preLogIndex].Term
+				}
 
 				response, err := proxy.SendAppendEntries(ctx, nodeID,
 					proxy.AppendEntries{
 						Term:         p.currentTerm,
 						LeaderID:     p.id,
 						PrevLogIndex: preLogIndex,
-						PrevLogTerm:  p.logs[preLogIndex].Term,
+						PrevLogTerm:  preLogTerm,
 						LeaderCommit: p.getCommitIndex(),
 						Entries:      p.logs[nextLogIndex:replicationBound],
 					})
@@ -176,7 +179,7 @@ func (p *Leader) replicate(ctx context.Context, wg *sync.WaitGroup, nodeID strin
 								count++
 							}
 						}
-						if count > len(p.config.Nodes)/2 {
+						if count > p.config.Len()/2 {
 							p.setCommitIndex(N)
 						}
 					}

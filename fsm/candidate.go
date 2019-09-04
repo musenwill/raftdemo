@@ -23,7 +23,8 @@ func (p *Candidate) implStateInterface() {
 }
 
 func (p *Candidate) enterState() {
-	p.stateLogger.Info("enter state")
+	p.stateLogger.Infow("enter state", "term", p.currentTerm, "voteFor", p.votedFor,
+		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 	p.randomResetTimer()
 	if p.stopElection != nil {
 		close(p.stopElection)
@@ -36,7 +37,9 @@ func (p *Candidate) leaveState() {
 		close(p.stopElection)
 	}
 	p.stopElection = nil
-	p.stateLogger.Info("leave state")
+
+	p.stateLogger.Infow("leave state", "term", p.currentTerm, "voteFor", p.votedFor,
+		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 }
 
 func (p *Candidate) onAppendEntries(param proxy.AppendEntries) proxy.Response {
@@ -58,18 +61,18 @@ func (p *Candidate) onRequestVote(param proxy.RequestVote) proxy.Response {
 }
 
 func (p *Candidate) timeout() {
-	p.currentState.enterState()
+	p.enterState()
 
-	p.currentTerm += 1
+	p.currentTerm++
 	p.votedFor = p.id
-
 	vote := make(chan bool)
+
 	go p.countVote(vote)
 	go p.canvass(vote)
 }
 
-func (p *Candidate) countVote(vote chan bool) {
-	count := 1 // add self in firstly
+func (p *Candidate) countVote(vote <-chan bool) {
+	count := 0
 	for {
 		select {
 		case <-p.stopElection:
@@ -78,10 +81,10 @@ func (p *Candidate) countVote(vote chan bool) {
 			if !ok {
 				return
 			}
-			count += 1
+			count++
 
 			// win the election
-			if count > len(p.config.Nodes)/2 {
+			if count > p.config.Len()/2 {
 				p.transferState(NewLeader(p.Server, p.config))
 				return
 			}
@@ -89,16 +92,20 @@ func (p *Candidate) countVote(vote chan bool) {
 	}
 }
 
-func (p *Candidate) canvass(vote chan bool) {
+func (p *Candidate) canvass(vote chan<- bool) {
 	defer close(vote)
+	// give self a vote firstly
+	vote <- true
 
 	wg := &sync.WaitGroup{}
-	wg.Add(len(p.config.Nodes))
-
 	for _, n := range p.config.Nodes {
 		node := n
+		if node.ID == p.id {
+			continue
+		}
+		wg.Add(1)
 		go func() {
-			wg.Done()
+			defer wg.Done()
 
 			var lastLogTerm int64 = 0
 			lastLogIndex := p.lastLogIndex()
@@ -130,6 +137,5 @@ func (p *Candidate) canvass(vote chan bool) {
 			}
 		}()
 	}
-
 	wg.Wait()
 }

@@ -2,6 +2,7 @@ package fsm
 
 import (
 	"fmt"
+	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -29,12 +30,16 @@ type Server struct {
 	logs         []proxy.Log
 	currentState State
 
-	commitNotifier chan bool
-	stopNotifier   chan bool
+	commitNotifier chan bool //
+	stopNotifier   chan bool // notify to stop the server
 
 	config    *config.Config
 	logger    *zap.SugaredLogger
 	committer Committer
+}
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
 }
 
 func NewServer(id string, committer Committer, config *config.Config, logger *zap.SugaredLogger) *Server {
@@ -74,35 +79,38 @@ func (p *Server) Stop() {
 	p.logger.Info("stop commit task")
 }
 
+// core code
 func (p *Server) fsmTask() {
 	for {
 		select {
 		case <-p.stopNotifier:
 			return
 		case <-p.timer.C:
-			p.currentState.timeout()
 			p.logger.Info("timeout")
+			p.currentState.timeout()
 		case request := <-proxy.AppendEntriesRequestReader(p.id):
-			p.logger.Debugw("receive append entries request", "body", request)
+			p.logger.Debugw("receive append entries request", "term", p.currentTerm, "voteFor", p.votedFor,
+				"commitIndex", p.commitIndex, "lastAplied", p.lastAplied, "body", request)
 			response := p.currentState.onAppendEntries(request)
 			select {
 			case <-p.stopNotifier:
 				return
 			case <-p.timer.C:
-				p.currentState.timeout()
 				p.logger.Info("timeout")
+				p.currentState.timeout()
 			case proxy.AppendEntriesResponseSender(p.id) <- response:
 				p.logger.Debugw("send append entries response", "body", response)
 			}
 		case request := <-proxy.RequestVoteRequestReader(p.id):
-			p.logger.Debugw("receive request vote request", "body", request)
+			p.logger.Debugw("receive request vote request", "term", p.currentTerm, "voteFor", p.votedFor,
+				"commitIndex", p.commitIndex, "lastAplied", p.lastAplied, "body", request)
 			response := p.currentState.onRequestVote(request)
 			select {
 			case <-p.stopNotifier:
 				return
 			case <-p.timer.C:
-				p.currentState.timeout()
 				p.logger.Info("timeout")
+				p.currentState.timeout()
 			case proxy.RequestVoteResponseSender(p.id) <- response:
 				p.logger.Debugw("send request vote response", "body", response)
 			}
@@ -126,7 +134,9 @@ func (p *Server) commitTask() {
 }
 
 func (p *Server) transferState(state State) {
-	p.currentState.leaveState()
+	if p.currentState != nil {
+		p.currentState.leaveState()
+	}
 	p.currentState = state
 	p.currentState.enterState()
 }
@@ -140,7 +150,8 @@ func (p *Server) resetTimer() {
 }
 
 func (p *Server) randomResetTimer() {
-	randTime := int(float64(p.config.Timeout) * 1.5)
+	randTime := rand.Int()*87383%p.config.Timeout + p.config.Timeout/2
+
 	if p.timer == nil {
 		p.timer = time.NewTimer(time.Duration(randTime) * time.Millisecond)
 	} else {

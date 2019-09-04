@@ -9,3 +9,7 @@ type Config struct {
 	Timeout      int // append entries timeout, ms
 	MaxReplicate int
 }
+
+func (p *Config) Len() int {
+	return len(p.Nodes)
+}

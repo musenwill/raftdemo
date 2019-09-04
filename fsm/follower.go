@@ -21,13 +21,15 @@ func (p *Follower) implStateInterface() {
 }
 
 func (p *Follower) enterState() {
-	p.stateLogger.Info("enter state")
+	p.stateLogger.Infow("enter state", "term", p.currentTerm, "voteFor", p.votedFor,
+		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 	p.resetTimer()
 	p.votedFor = ""
 }
 
 func (p *Follower) leaveState() {
-	p.stateLogger.Info("leave state")
+	p.stateLogger.Infow("leave state", "term", p.currentTerm, "voteFor", p.votedFor,
+		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 }
 
 func (p *Follower) onAppendEntries(param proxy.AppendEntries) proxy.Response {
