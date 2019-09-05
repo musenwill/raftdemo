@@ -11,12 +11,17 @@ import (
 	"go.uber.org/zap"
 )
 
+type logable interface {
+	getLogger() *zap.SugaredLogger
+}
+
 type State interface {
 	enterState()
 	leaveState()
 	onAppendEntries(param proxy.AppendEntries) proxy.Response
 	onRequestVote(param proxy.RequestVote) proxy.Response
 	timeout()
+	logable
 }
 
 type Server struct {
@@ -64,9 +69,9 @@ func NewServer(id string, committer Committer, config *config.Config, logger *za
 
 func (p *Server) Run() {
 	go p.commitTask()
-	p.logger.Info("start up commit task")
+	p.currentState.getLogger().Info("start up commit task")
 	go p.fsmTask()
-	p.logger.Info("start up fsm task")
+	p.currentState.getLogger().Info("start up fsm task")
 }
 
 func (p *Server) Stop() {
@@ -74,9 +79,9 @@ func (p *Server) Stop() {
 	p.timer.Stop()
 
 	close(p.stopNotifier)
-	p.logger.Info("stop fsm task")
+	p.currentState.getLogger().Info("stop fsm task")
 	close(p.commitNotifier)
-	p.logger.Info("stop commit task")
+	p.currentState.getLogger().Info("stop commit task")
 }
 
 // core code
@@ -86,33 +91,36 @@ func (p *Server) fsmTask() {
 		case <-p.stopNotifier:
 			return
 		case <-p.timer.C:
-			p.logger.Info("timeout")
+			p.currentState.getLogger().Infow("timeout", "term", p.currentTerm, "voteFor", p.votedFor,
+				"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 			p.currentState.timeout()
 		case request := <-proxy.AppendEntriesRequestReader(p.id):
-			p.logger.Debugw("receive append entries request", "term", p.currentTerm, "voteFor", p.votedFor,
+			p.currentState.getLogger().Debugw("receive append entries request", "term", p.currentTerm, "voteFor", p.votedFor,
 				"commitIndex", p.commitIndex, "lastAplied", p.lastAplied, "body", request)
 			response := p.currentState.onAppendEntries(request)
 			select {
 			case <-p.stopNotifier:
 				return
 			case <-p.timer.C:
-				p.logger.Info("timeout")
+				p.currentState.getLogger().Infow("timeout", "term", p.currentTerm, "voteFor", p.votedFor,
+					"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 				p.currentState.timeout()
 			case proxy.AppendEntriesResponseSender(p.id) <- response:
-				p.logger.Debugw("send append entries response", "body", response)
+				p.currentState.getLogger().Debugw("send append entries response", "body", response)
 			}
 		case request := <-proxy.RequestVoteRequestReader(p.id):
-			p.logger.Debugw("receive request vote request", "term", p.currentTerm, "voteFor", p.votedFor,
+			p.currentState.getLogger().Debugw("receive request vote request", "term", p.currentTerm, "voteFor", p.votedFor,
 				"commitIndex", p.commitIndex, "lastAplied", p.lastAplied, "body", request)
 			response := p.currentState.onRequestVote(request)
 			select {
 			case <-p.stopNotifier:
 				return
 			case <-p.timer.C:
-				p.logger.Info("timeout")
+				p.currentState.getLogger().Infow("timeout", "term", p.currentTerm, "voteFor", p.votedFor,
+					"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 				p.currentState.timeout()
 			case proxy.RequestVoteResponseSender(p.id) <- response:
-				p.logger.Debugw("send request vote response", "body", response)
+				p.currentState.getLogger().Debugw("send request vote response", "body", response)
 			}
 		}
 	}
@@ -124,11 +132,12 @@ func (p *Server) commitTask() {
 		for i := p.lastAplied + 1; i <= p.commitIndex; i++ {
 			err := p.committer.Commit(p.logs[i])
 			if err != nil {
-				p.logger.Errorw("commit log error", "logIndex", i, "log", p.logs[i], "err", err)
+				p.currentState.getLogger().Errorw("commit log error", "logIndex", i, "log", p.logs[i], "err", err)
 				break
 			}
 			p.lastAplied++
-			p.logger.Infow("succeed commit log", "logIndex", i)
+			p.currentState.getLogger().Infow("succeed commit log", "logIndex", i, "term", p.currentTerm,
+				"voteFor", p.votedFor, "commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 		}
 	}
 }

@@ -22,6 +22,10 @@ func (p *Follower) implStateInterface() {
 	var _ State = &Follower{}
 }
 
+func (p *Follower) getLogger() *zap.SugaredLogger {
+	return p.stateLogger
+}
+
 func (p *Follower) enterState() {
 	p.stateLogger.Infow("enter state", "term", p.currentTerm, "voteFor", p.votedFor,
 		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)

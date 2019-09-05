@@ -35,6 +35,10 @@ func (p *Leader) implStateInterface() {
 	var _ State = &Leader{}
 }
 
+func (p *Leader) getLogger() *zap.SugaredLogger {
+	return p.stateLogger
+}
+
 func (p *Leader) initState() {
 	p.rapidResetTimer()
 	if p.stopReplicate != nil {

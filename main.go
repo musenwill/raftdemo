@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 
 	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/config"
@@ -16,7 +18,7 @@ func main() {
 		log.Println(http.ListenAndServe(":80", nil))
 	}()
 
-	nodeNum := 3
+	nodeNum, _ := strconv.Atoi(os.Args[1])
 	var nodes []config.Node
 	for i := 1; i <= nodeNum; i++ {
 		nodes = append(nodes, config.Node{ID: fmt.Sprintf("node-%d", i)})
@@ -24,7 +26,7 @@ func main() {
 	proxy.Config(nodes)
 
 	logger := common.NewLogger(common.DefaultZapConfig("raft.log"))
-	config := &config.Config{Timeout: 2000, MaxReplicate: 1, Nodes: nodes}
+	config := &config.Config{Timeout: 20, MaxReplicate: 1, Nodes: nodes}
 	committer, _ := fsm.NewFileCommitter("commit.txt")
 
 	for _, node := range nodes {

@@ -18,6 +18,10 @@ func (p *Dummy) implStateInterface() {
 	var _ State = &Dummy{}
 }
 
+func (p *Dummy) getLogger() *zap.SugaredLogger {
+	return p.stateLogger
+}
+
 func (p *Dummy) enterState() {
 	p.stateLogger.Info("enter state")
 }
