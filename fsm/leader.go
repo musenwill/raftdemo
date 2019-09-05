@@ -2,6 +2,7 @@ package fsm
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/musenwill/raftdemo/config"
@@ -18,6 +19,8 @@ type Leader struct {
 	nIndex        map[string]*nodeIndex
 	stopReplicate chan bool
 	stateLogger   *zap.SugaredLogger
+
+	stopReplicateLock *sync.Mutex
 }
 
 func NewLeader(s *Server, conf *config.Config) *Leader {
@@ -41,10 +44,7 @@ func (p *Leader) getLogger() *zap.SugaredLogger {
 
 func (p *Leader) initState() {
 	p.rapidResetTimer()
-	if p.stopReplicate != nil {
-		close(p.stopReplicate)
-	}
-	p.stopReplicate = make(chan bool)
+	p.resetStopReplicate()
 }
 
 func (p *Leader) enterState() {
@@ -55,10 +55,7 @@ func (p *Leader) enterState() {
 }
 
 func (p *Leader) leaveState() {
-	if p.stopReplicate != nil {
-		close(p.stopReplicate)
-	}
-	p.stopReplicate = nil
+	p.resetStopReplicate()
 	p.stateLogger.Infow("leave state", "term", p.currentTerm, "voteFor", p.votedFor,
 		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 }
@@ -211,4 +208,14 @@ func (p *Server) rapidResetTimer() {
 	} else {
 		p.timer.Reset(time.Duration(rapidTimer) * time.Millisecond)
 	}
+}
+
+func (p *Leader) resetStopReplicate() {
+	p.stopReplicateLock.Lock()
+	defer p.stopReplicateLock.Unlock()
+
+	if p.stopReplicate != nil {
+		close(p.stopReplicate)
+	}
+	p.stopReplicate = make(chan bool)
 }

@@ -3,6 +3,7 @@ package fsm
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -41,6 +42,10 @@ type Server struct {
 	config    *config.Config
 	logger    *zap.SugaredLogger
 	committer Committer
+
+	timerLock        *sync.RWMutex
+	logsLock         *sync.RWMutex
+	currentStateLock *sync.RWMutex
 }
 
 func init() {
@@ -58,6 +63,10 @@ func NewServer(id string, committer Committer, config *config.Config, logger *za
 		config:         config,
 		logger:         logger.With("node", id),
 		committer:      committer,
+
+		timerLock:        &sync.RWMutex{},
+		logsLock:         &sync.RWMutex{},
+		currentStateLock: &sync.RWMutex{},
 	}
 
 	s.checkConfig(config)
@@ -182,6 +191,36 @@ func (p *Server) setCommitIndex(i int64) {
 	p.commitNotifier <- true
 }
 
+func (p *Server) getCurrentTerm() int64 {
+	return atomic.LoadInt64(&p.currentTerm)
+}
+
+func (p *Server) setCurrentTerm(i int64) {
+	atomic.StoreInt64(&p.currentTerm, i)
+}
+
+func (p *Server) increaseCurrentTerm() {
+	atomic.AddInt64(&p.currentTerm, 1)
+}
+
+func (p *Server) getLastAplied() int64 {
+	return atomic.LoadInt64(&p.lastAplied)
+}
+
+func (p *Server) setLastAplied(i int64) {
+	atomic.StoreInt64(&p.lastAplied, i)
+}
+
 func (p *Server) lastLogIndex() int64 {
+	p.logsLock.RLock()
+	defer p.logsLock.RUnlock()
+
 	return int64(len(p.logs) - 1)
+}
+
+func (p *Server) getLog(index int) proxy.Log {
+	p.logsLock.RLock()
+	defer p.logsLock.RUnlock()
+
+	return p.logs[index]
 }

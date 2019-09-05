@@ -14,10 +14,17 @@ type Candidate struct {
 	*Server      // embed server
 	stopElection chan bool
 	stateLogger  *zap.SugaredLogger
+
+	stopElectionLock *sync.Mutex
 }
 
 func NewCandidate(s *Server, config *config.Config) *Candidate {
-	return &Candidate{s, nil, s.logger.With("state", "candidate")}
+	return &Candidate{
+		Server:           s,
+		stopElection:     nil,
+		stateLogger:      s.logger.With("state", "candidate"),
+		stopElectionLock: &sync.Mutex{},
+	}
 }
 
 func (p *Candidate) implStateInterface() {
@@ -32,18 +39,11 @@ func (p *Candidate) enterState() {
 	p.stateLogger.Infow("enter state", "term", p.currentTerm, "voteFor", p.votedFor,
 		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 	p.randomResetTimer()
-	if p.stopElection != nil {
-		close(p.stopElection)
-	}
-	p.stopElection = make(chan bool)
+	p.resetStopElection()
 }
 
 func (p *Candidate) leaveState() {
-	if p.stopElection != nil {
-		close(p.stopElection)
-	}
-	p.stopElection = nil
-
+	p.resetStopElection()
 	p.stateLogger.Infow("leave state", "term", p.currentTerm, "voteFor", p.votedFor,
 		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
 }
@@ -155,4 +155,14 @@ func (p *Server) randomResetTimer() {
 	} else {
 		p.timer.Reset(time.Duration(randTime) * time.Millisecond)
 	}
+}
+
+func (p *Candidate) resetStopElection() {
+	p.stopElectionLock.Lock()
+	defer p.stopElectionLock.Unlock()
+
+	if p.stopElection != nil {
+		close(p.stopElection)
+	}
+	p.stopElection = make(chan bool)
 }

@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/config"
@@ -14,9 +15,11 @@ import (
 )
 
 func main() {
-	go func() {
-		log.Println(http.ListenAndServe(":80", nil))
-	}()
+	// go func() {
+	// 	http.ListenAndServe(":8080", nil)
+	// }()
+
+	time.Sleep(time.Second * 2)
 
 	nodeNum, _ := strconv.Atoi(os.Args[1])
 	var nodes []config.Node
@@ -26,7 +29,7 @@ func main() {
 	proxy.Config(nodes)
 
 	logger := common.NewLogger(common.DefaultZapConfig("raft.log"))
-	config := &config.Config{Timeout: 20, MaxReplicate: 1, Nodes: nodes}
+	config := &config.Config{Timeout: 2000, MaxReplicate: 1, Nodes: nodes}
 	committer, _ := fsm.NewFileCommitter("commit.txt")
 
 	for _, node := range nodes {
@@ -34,6 +37,7 @@ func main() {
 		server.Run()
 	}
 
-	stop := make(chan bool)
-	<-stop
+	// stop := make(chan bool)
+	// <-stop
+	http.ListenAndServe(":8080", nil)
 }
