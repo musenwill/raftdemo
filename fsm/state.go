@@ -141,24 +141,6 @@ func (p *Server) transferState(state State) {
 	p.currentState.enterState()
 }
 
-func (p *Server) resetTimer() {
-	if p.timer == nil {
-		p.timer = time.NewTimer(time.Duration(p.config.Timeout) * time.Millisecond)
-	} else {
-		p.timer.Reset(time.Duration(p.config.Timeout) * time.Millisecond)
-	}
-}
-
-func (p *Server) randomResetTimer() {
-	randTime := rand.Int()*87383%p.config.Timeout + p.config.Timeout/2
-
-	if p.timer == nil {
-		p.timer = time.NewTimer(time.Duration(randTime) * time.Millisecond)
-	} else {
-		p.timer.Reset(time.Duration(randTime) * time.Millisecond)
-	}
-}
-
 func (p *Server) checkConfig(config *config.Config) {
 	if config.Timeout <= 0 {
 		panic(fmt.Sprintf("invalid timeout %v, expected greater than 0", config.Timeout))

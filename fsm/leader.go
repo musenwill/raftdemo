@@ -2,6 +2,7 @@ package fsm
 
 import (
 	"context"
+	"time"
 
 	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/proxy"
@@ -35,7 +36,7 @@ func (p *Leader) implStateInterface() {
 }
 
 func (p *Leader) initState() {
-	p.resetTimer()
+	p.rapidResetTimer()
 	if p.stopReplicate != nil {
 		close(p.stopReplicate)
 	}
@@ -194,5 +195,16 @@ func (p *Leader) replicate(ctx context.Context, nodeID string) {
 				}
 			}
 		}
+	}
+}
+
+// reset timer for leader, which should be a bit faster than the timer of follower
+// to avoid follower timeout
+func (p *Server) rapidResetTimer() {
+	rapidTimer := int(float64(p.config.Timeout) * 0.8)
+	if p.timer == nil {
+		p.timer = time.NewTimer(time.Duration(rapidTimer) * time.Millisecond)
+	} else {
+		p.timer.Reset(time.Duration(rapidTimer) * time.Millisecond)
 	}
 }

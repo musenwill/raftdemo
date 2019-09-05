@@ -1,7 +1,9 @@
 package fsm
 
 import (
+	"math/rand"
 	"sync"
+	"time"
 
 	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/proxy"
@@ -138,4 +140,15 @@ func (p *Candidate) canvass(vote chan<- bool) {
 		}()
 	}
 	wg.Wait()
+}
+
+// reset timer for candidate randomly
+func (p *Server) randomResetTimer() {
+	randTime := rand.Int()*87383%p.config.Timeout + p.config.Timeout/2
+
+	if p.timer == nil {
+		p.timer = time.NewTimer(time.Duration(randTime) * time.Millisecond)
+	} else {
+		p.timer.Reset(time.Duration(randTime) * time.Millisecond)
+	}
 }

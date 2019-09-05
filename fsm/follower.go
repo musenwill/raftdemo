@@ -1,6 +1,8 @@
 package fsm
 
 import (
+	"time"
+
 	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/proxy"
 	"go.uber.org/zap"
@@ -106,4 +108,13 @@ func (p *Follower) onRequestVote(param proxy.RequestVote) proxy.Response {
 
 func (p *Follower) timeout() {
 	p.transferState(NewCandidate(p.Server, p.config))
+}
+
+// reset timer for follower, as time configured
+func (p *Server) resetTimer() {
+	if p.timer == nil {
+		p.timer = time.NewTimer(time.Duration(p.config.Timeout) * time.Millisecond)
+	} else {
+		p.timer.Reset(time.Duration(p.config.Timeout) * time.Millisecond)
+	}
 }
