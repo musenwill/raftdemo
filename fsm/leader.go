@@ -31,7 +31,13 @@ func NewLeader(s *Server, conf *config.Config) *Leader {
 			nIndex[n.ID] = &nodeIndex{nextIndex: lastLogIndex + 1, matchIndex: 0}
 		}
 	}
-	return &Leader{s, nIndex, nil, s.logger.With("state", "leader")}
+	return &Leader{
+		Server:            s,
+		nIndex:            nIndex,
+		stopReplicate:     nil,
+		stateLogger:       s.logger.With("state", "leader"),
+		stopReplicateLock: &sync.Mutex{},
+	}
 }
 
 func (p *Leader) implStateInterface() {
@@ -61,8 +67,8 @@ func (p *Leader) leaveState() {
 }
 
 func (p *Leader) onAppendEntries(param proxy.AppendEntries) proxy.Response {
-	if param.Term <= p.currentTerm {
-		return proxy.Response{Term: p.currentTerm, Success: false}
+	if param.Term <= p.getCurrentTerm() {
+		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 	} else {
 		p.transferState(NewFollower(p.Server, p.config))
 		return p.onAppendEntries(param)
@@ -70,8 +76,8 @@ func (p *Leader) onAppendEntries(param proxy.AppendEntries) proxy.Response {
 }
 
 func (p *Leader) onRequestVote(param proxy.RequestVote) proxy.Response {
-	if param.Term <= p.currentTerm {
-		return proxy.Response{Term: p.currentTerm, Success: false}
+	if param.Term <= p.getCurrentTerm() {
+		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 	} else {
 		p.transferState(NewFollower(p.Server, p.config))
 		return p.onRequestVote(param)
@@ -117,14 +123,14 @@ func (p *Leader) job(handler jobHandler) {
 func (p *Leader) heartbeat(ctx context.Context, nodeID string) {
 	response, err := proxy.SendAppendEntries(ctx, nodeID,
 		proxy.AppendEntries{
-			Term:         p.currentTerm,
+			Term:         p.getCurrentTerm(),
 			LeaderID:     p.id,
 			LeaderCommit: p.getCommitIndex()})
 	if err != nil {
 		// log it
 		return
 	}
-	if response.Term > p.currentTerm {
+	if response.Term > p.getCurrentTerm() {
 		p.transferState(NewFollower(p.Server, p.config))
 		return
 	}
@@ -151,7 +157,7 @@ func (p *Leader) replicate(ctx context.Context, nodeID string) {
 
 				response, err := proxy.SendAppendEntries(ctx, nodeID,
 					proxy.AppendEntries{
-						Term:         p.currentTerm,
+						Term:         p.getCurrentTerm(),
 						LeaderID:     p.id,
 						PrevLogIndex: preLogIndex,
 						PrevLogTerm:  preLogTerm,
@@ -162,7 +168,7 @@ func (p *Leader) replicate(ctx context.Context, nodeID string) {
 					// log it
 					return
 				}
-				if response.Term > p.currentTerm {
+				if response.Term > p.getCurrentTerm() {
 					p.transferState(NewFollower(p.Server, p.config))
 					return
 				}
@@ -172,7 +178,7 @@ func (p *Leader) replicate(ctx context.Context, nodeID string) {
 					p.nIndex[nodeID].matchIndex = replicationBound - 1
 
 					for N := p.lastLogIndex(); N > p.getCommitIndex(); N-- {
-						if p.logs[N].Term < p.currentTerm {
+						if p.logs[N].Term < p.getCurrentTerm() {
 							break
 						}
 						count := 1 // add self in firstly
@@ -203,6 +209,10 @@ func (p *Leader) replicate(ctx context.Context, nodeID string) {
 // to avoid follower timeout
 func (p *Server) rapidResetTimer() {
 	rapidTimer := int(float64(p.config.Timeout) * 0.8)
+
+	p.timerLock.Lock()
+	defer p.timerLock.Unlock()
+
 	if p.timer == nil {
 		p.timer = time.NewTimer(time.Duration(rapidTimer) * time.Millisecond)
 	} else {

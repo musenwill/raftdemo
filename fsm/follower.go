@@ -42,10 +42,10 @@ func (p *Follower) onAppendEntries(param proxy.AppendEntries) proxy.Response {
 	p.resetTimer()
 
 	// 1. reply false if term < currentTerm
-	if param.Term < p.currentTerm {
-		return proxy.Response{Term: p.currentTerm, Success: false}
+	if param.Term < p.getCurrentTerm() {
+		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 	}
-	p.currentTerm = param.Term
+	p.setCurrentTerm(param.Term)
 	p.leaderID = param.LeaderID
 
 	// not a heartbeat request
@@ -53,7 +53,7 @@ func (p *Follower) onAppendEntries(param proxy.AppendEntries) proxy.Response {
 		// 2. reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm
 		if param.PrevLogIndex >= 0 {
 			if param.PrevLogIndex > p.lastLogIndex() || p.logs[param.PrevLogIndex].Term != param.PrevLogTerm {
-				return proxy.Response{Term: p.currentTerm, Success: false}
+				return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 			}
 		}
 
@@ -74,40 +74,40 @@ func (p *Follower) onAppendEntries(param proxy.AppendEntries) proxy.Response {
 		p.setCommitIndex(newIndex)
 	}
 
-	return proxy.Response{Term: p.currentTerm, Success: true}
+	return proxy.Response{Term: p.getCurrentTerm(), Success: true}
 }
 
 func (p *Follower) onRequestVote(param proxy.RequestVote) proxy.Response {
 	p.resetTimer()
 
-	if param.Term < p.currentTerm {
-		return proxy.Response{Term: p.currentTerm, Success: false}
+	if param.Term < p.getCurrentTerm() {
+		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 	}
 
 	// a new round of election
-	if param.Term > p.currentTerm {
-		p.currentTerm = param.Term
+	if param.Term > p.getCurrentTerm() {
+		p.setCurrentTerm(param.Term)
 		p.votedFor = ""
 	}
 
 	// have vote for other candidate in this term
 	if len(p.votedFor) > 0 && p.votedFor != param.CandidateID {
-		return proxy.Response{Term: p.currentTerm, Success: false}
+		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 	}
 
 	if p.lastLogIndex() >= 0 {
 		if p.logs[p.lastLogIndex()].Term > param.LastLogTerm {
-			return proxy.Response{Term: p.currentTerm, Success: false}
+			return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 		}
 		if p.logs[p.lastLogIndex()].Term == param.LastLogTerm {
 			if p.lastLogIndex() > param.LastLogIndex {
-				return proxy.Response{Term: p.currentTerm, Success: false}
+				return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 			}
 		}
 	}
 
 	p.votedFor = param.CandidateID
-	return proxy.Response{Term: p.currentTerm, Success: true}
+	return proxy.Response{Term: p.getCurrentTerm(), Success: true}
 }
 
 func (p *Follower) timeout() {
@@ -116,6 +116,9 @@ func (p *Follower) timeout() {
 
 // reset timer for follower, as time configured
 func (p *Server) resetTimer() {
+	p.timerLock.Lock()
+	defer p.timerLock.Unlock()
+
 	if p.timer == nil {
 		p.timer = time.NewTimer(time.Duration(p.config.Timeout) * time.Millisecond)
 	} else {

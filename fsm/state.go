@@ -43,9 +43,9 @@ type Server struct {
 	logger    *zap.SugaredLogger
 	committer Committer
 
-	timerLock        *sync.RWMutex
+	timerLock        *sync.Mutex
 	logsLock         *sync.RWMutex
-	currentStateLock *sync.RWMutex
+	currentStateLock *sync.Mutex
 }
 
 func init() {
@@ -64,9 +64,9 @@ func NewServer(id string, committer Committer, config *config.Config, logger *za
 		logger:         logger.With("node", id),
 		committer:      committer,
 
-		timerLock:        &sync.RWMutex{},
+		timerLock:        &sync.Mutex{},
 		logsLock:         &sync.RWMutex{},
-		currentStateLock: &sync.RWMutex{},
+		currentStateLock: &sync.Mutex{},
 	}
 
 	s.checkConfig(config)
@@ -138,7 +138,7 @@ func (p *Server) fsmTask() {
 func (p *Server) commitTask() {
 	for {
 		<-p.commitNotifier
-		for i := p.lastAplied + 1; i <= p.commitIndex; i++ {
+		for i := p.lastAplied + 1; i <= p.getCommitIndex(); i++ {
 			err := p.committer.Commit(p.logs[i])
 			if err != nil {
 				p.currentState.getLogger().Errorw("commit log error", "logIndex", i, "log", p.logs[i], "err", err)
@@ -152,6 +152,9 @@ func (p *Server) commitTask() {
 }
 
 func (p *Server) transferState(state State) {
+	p.currentStateLock.Lock()
+	defer p.currentStateLock.Unlock()
+
 	if p.currentState != nil {
 		p.currentState.leaveState()
 	}

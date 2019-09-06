@@ -49,8 +49,8 @@ func (p *Candidate) leaveState() {
 }
 
 func (p *Candidate) onAppendEntries(param proxy.AppendEntries) proxy.Response {
-	if param.Term < p.currentTerm {
-		return proxy.Response{Term: p.currentTerm, Success: false}
+	if param.Term < p.getCurrentTerm() {
+		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 	} else {
 		p.transferState(NewFollower(p.Server, p.config))
 		return p.currentState.onAppendEntries(param)
@@ -58,8 +58,8 @@ func (p *Candidate) onAppendEntries(param proxy.AppendEntries) proxy.Response {
 }
 
 func (p *Candidate) onRequestVote(param proxy.RequestVote) proxy.Response {
-	if param.Term <= p.currentTerm {
-		return proxy.Response{Term: p.currentTerm, Success: false}
+	if param.Term <= p.getCurrentTerm() {
+		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 	} else {
 		p.transferState(NewFollower(p.Server, p.config))
 		return p.currentState.onRequestVote(param)
@@ -69,7 +69,7 @@ func (p *Candidate) onRequestVote(param proxy.RequestVote) proxy.Response {
 func (p *Candidate) timeout() {
 	p.enterState()
 
-	p.currentTerm++
+	p.increaseCurrentTerm()
 	p.votedFor = p.id
 	vote := make(chan bool)
 
@@ -119,7 +119,7 @@ func (p *Candidate) canvass(vote chan<- bool) {
 				lastLogTerm = p.logs[lastLogIndex].Term
 			}
 			request := proxy.RequestVote{
-				Term:         p.currentTerm,
+				Term:         p.getCurrentTerm(),
 				CandidateID:  p.id,
 				LastLogIndex: lastLogIndex,
 				LastLogTerm:  lastLogTerm}
@@ -132,7 +132,7 @@ func (p *Candidate) canvass(vote chan<- bool) {
 				case <-p.stopElection:
 					return
 				case response := <-proxy.RequestVoteResponseReader(node.ID):
-					if response.Term > p.currentTerm {
+					if response.Term > p.getCurrentTerm() {
 						p.transferState(NewFollower(p.Server, p.config))
 						return
 					}
@@ -149,6 +149,9 @@ func (p *Candidate) canvass(vote chan<- bool) {
 // reset timer for candidate randomly
 func (p *Server) randomResetTimer() {
 	randTime := rand.Int()*87383%p.config.Timeout + p.config.Timeout/2
+
+	p.timerLock.Lock()
+	defer p.timerLock.Unlock()
 
 	if p.timer == nil {
 		p.timer = time.NewTimer(time.Duration(randTime) * time.Millisecond)
