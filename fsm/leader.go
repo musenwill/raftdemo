@@ -35,7 +35,7 @@ func NewLeader(s *Server, conf *config.Config) *Leader {
 		Server:            s,
 		nIndex:            nIndex,
 		stopReplicate:     nil,
-		stateLogger:       s.logger.With("state", "leader"),
+		stateLogger:       s.logger.With("state", StateEnum.Leader),
 		stopReplicateLock: &sync.Mutex{},
 	}
 }
@@ -70,8 +70,8 @@ func (p *Leader) onAppendEntries(param proxy.AppendEntries) proxy.Response {
 	if param.Term <= p.getCurrentTerm() {
 		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 	} else {
-		p.transferState(NewFollower(p.Server, p.config))
-		return p.onAppendEntries(param)
+		p.transferState(StateEnum.Follower)
+		return p.getCurrentState().onAppendEntries(param)
 	}
 }
 
@@ -79,8 +79,8 @@ func (p *Leader) onRequestVote(param proxy.RequestVote) proxy.Response {
 	if param.Term <= p.getCurrentTerm() {
 		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 	} else {
-		p.transferState(NewFollower(p.Server, p.config))
-		return p.onRequestVote(param)
+		p.transferState(StateEnum.Follower)
+		return p.getCurrentState().onRequestVote(param)
 	}
 }
 
@@ -131,7 +131,7 @@ func (p *Leader) heartbeat(ctx context.Context, nodeID string) {
 		return
 	}
 	if response.Term > p.getCurrentTerm() {
-		p.transferState(NewFollower(p.Server, p.config))
+		p.transferState(StateEnum.Follower)
 		return
 	}
 }
@@ -169,7 +169,7 @@ func (p *Leader) replicate(ctx context.Context, nodeID string) {
 					return
 				}
 				if response.Term > p.getCurrentTerm() {
-					p.transferState(NewFollower(p.Server, p.config))
+					p.transferState(StateEnum.Follower)
 					return
 				}
 				// update commit index

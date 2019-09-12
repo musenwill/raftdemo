@@ -15,10 +15,6 @@ import (
 )
 
 func main() {
-	// go func() {
-	// 	http.ListenAndServe(":8080", nil)
-	// }()
-
 	time.Sleep(time.Second * 2)
 
 	nodeNum, _ := strconv.Atoi(os.Args[1])
@@ -29,7 +25,7 @@ func main() {
 	proxy.Config(nodes)
 
 	logger := common.NewLogger(common.DefaultZapConfig("raft.log"))
-	config := &config.Config{Timeout: 2000, MaxReplicate: 1, Nodes: nodes}
+	config := &config.Config{Timeout: 5000, MaxReplicate: 1, Nodes: nodes}
 	committer, _ := fsm.NewFileCommitter("commit.txt")
 
 	for _, node := range nodes {
@@ -37,7 +33,5 @@ func main() {
 		server.Run()
 	}
 
-	// stop := make(chan bool)
-	// <-stop
 	http.ListenAndServe(":8080", nil)
 }

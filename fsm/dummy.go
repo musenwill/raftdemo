@@ -11,7 +11,7 @@ type Dummy struct {
 }
 
 func NewDummyState(s *Server, config *config.Config) *Dummy {
-	return &Dummy{s.logger.With("state", "candidate")}
+	return &Dummy{s.logger.With("state", StateEnum.None)}
 }
 
 func (p *Dummy) implStateInterface() {

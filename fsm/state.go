@@ -12,8 +12,19 @@ import (
 	"go.uber.org/zap"
 )
 
+type statename string
+
 type logable interface {
 	getLogger() *zap.SugaredLogger
+}
+
+var StateEnum = struct {
+	None, Follower, Candidate, Leader statename
+}{
+	None:      "None",
+	Follower:  "Followr",
+	Candidate: "Candidate",
+	Leader:    "Leader",
 }
 
 type State interface {
@@ -35,6 +46,7 @@ type Server struct {
 	timer        *time.Timer
 	logs         []proxy.Log
 	currentState State
+	state        statename
 
 	commitNotifier chan bool //
 	stopNotifier   chan bool // notify to stop the server
@@ -43,9 +55,9 @@ type Server struct {
 	logger    *zap.SugaredLogger
 	committer Committer
 
-	timerLock        *sync.Mutex
-	logsLock         *sync.RWMutex
-	currentStateLock *sync.Mutex
+	timerLock *sync.Mutex
+	logsLock  *sync.RWMutex
+	stateLock *sync.RWMutex
 }
 
 func init() {
@@ -64,15 +76,15 @@ func NewServer(id string, committer Committer, config *config.Config, logger *za
 		logger:         logger.With("node", id),
 		committer:      committer,
 
-		timerLock:        &sync.Mutex{},
-		logsLock:         &sync.RWMutex{},
-		currentStateLock: &sync.Mutex{},
+		timerLock: &sync.Mutex{},
+		logsLock:  &sync.RWMutex{},
+		stateLock: &sync.RWMutex{},
 	}
 
 	s.checkConfig(config)
 
 	// initial state is follower
-	s.transferState(NewFollower(s, config))
+	s.transferState(StateEnum.Follower)
 	return s
 }
 
@@ -84,7 +96,7 @@ func (p *Server) Run() {
 }
 
 func (p *Server) Stop() {
-	p.transferState(NewDummyState(p, p.config))
+	p.transferState(StateEnum.None)
 	p.timer.Stop()
 
 	close(p.stopNotifier)
@@ -151,15 +163,32 @@ func (p *Server) commitTask() {
 	}
 }
 
-func (p *Server) transferState(state State) {
-	p.currentStateLock.Lock()
-	defer p.currentStateLock.Unlock()
+func (p *Server) transferState(state statename) {
+	p.stateLock.Lock()
+	defer p.stateLock.Unlock()
+
+	if p.state == state {
+		return
+	}
 
 	if p.currentState != nil {
 		p.currentState.leaveState()
 	}
-	p.currentState = state
+
+	p.state = state
+	var newState State
+	if state == StateEnum.Follower {
+		newState = NewFollower(p, p.config)
+	} else if state == StateEnum.Candidate {
+		newState = NewCandidate(p, p.config)
+	} else if state == StateEnum.Leader {
+		newState = NewLeader(p, p.config)
+	} else {
+		newState = NewDummyState(p, p.config)
+	}
+	p.currentState = newState
 	p.currentState.enterState()
+
 }
 
 func (p *Server) checkConfig(config *config.Config) {
@@ -226,4 +255,18 @@ func (p *Server) getLog(index int) proxy.Log {
 	defer p.logsLock.RUnlock()
 
 	return p.logs[index]
+}
+
+func (p *Server) getState() statename {
+	p.stateLock.RLock()
+	p.stateLock.RUnlock()
+
+	return p.state
+}
+
+func (p *Server) getCurrentState() State {
+	p.stateLock.RLock()
+	p.stateLock.RUnlock()
+
+	return p.currentState
 }

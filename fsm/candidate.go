@@ -22,7 +22,7 @@ func NewCandidate(s *Server, config *config.Config) *Candidate {
 	return &Candidate{
 		Server:           s,
 		stopElection:     nil,
-		stateLogger:      s.logger.With("state", "candidate"),
+		stateLogger:      s.logger.With("state", StateEnum.Candidate),
 		stopElectionLock: &sync.Mutex{},
 	}
 }
@@ -52,8 +52,8 @@ func (p *Candidate) onAppendEntries(param proxy.AppendEntries) proxy.Response {
 	if param.Term < p.getCurrentTerm() {
 		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 	} else {
-		p.transferState(NewFollower(p.Server, p.config))
-		return p.currentState.onAppendEntries(param)
+		p.transferState(StateEnum.Follower)
+		return p.getCurrentState().onAppendEntries(param)
 	}
 }
 
@@ -61,8 +61,8 @@ func (p *Candidate) onRequestVote(param proxy.RequestVote) proxy.Response {
 	if param.Term <= p.getCurrentTerm() {
 		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
 	} else {
-		p.transferState(NewFollower(p.Server, p.config))
-		return p.currentState.onRequestVote(param)
+		p.transferState(StateEnum.Follower)
+		return p.getCurrentState().onRequestVote(param)
 	}
 }
 
@@ -91,7 +91,7 @@ func (p *Candidate) countVote(vote <-chan bool) {
 
 			// win the election
 			if count > p.config.Len()/2 {
-				p.transferState(NewLeader(p.Server, p.config))
+				p.transferState(StateEnum.Leader)
 				return
 			}
 		}
@@ -133,7 +133,7 @@ func (p *Candidate) canvass(vote chan<- bool) {
 					return
 				case response := <-proxy.RequestVoteResponseReader(node.ID):
 					if response.Term > p.getCurrentTerm() {
-						p.transferState(NewFollower(p.Server, p.config))
+						p.transferState(StateEnum.Follower)
 						return
 					}
 					if response.Success {

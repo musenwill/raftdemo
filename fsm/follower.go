@@ -15,7 +15,7 @@ type Follower struct {
 }
 
 func NewFollower(s *Server, conf *config.Config) *Follower {
-	return &Follower{s, "", s.logger.With("state", "follower")}
+	return &Follower{s, "", s.logger.With("state", StateEnum.Follower)}
 }
 
 func (p *Follower) implStateInterface() {
@@ -111,7 +111,7 @@ func (p *Follower) onRequestVote(param proxy.RequestVote) proxy.Response {
 }
 
 func (p *Follower) timeout() {
-	p.transferState(NewCandidate(p.Server, p.config))
+	p.transferState(StateEnum.Candidate)
 }
 
 // reset timer for follower, as time configured
