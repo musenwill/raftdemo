@@ -79,6 +79,10 @@ func (p *Candidate) timeout() {
 
 func (p *Candidate) countVote(vote <-chan bool) {
 	count := 0
+	defer func() {
+		p.stateLogger.Infow("finish vote", "vote count", count)
+	}()
+
 	for {
 		select {
 		case <-p.stopElection:
