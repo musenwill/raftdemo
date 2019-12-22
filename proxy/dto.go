@@ -1,10 +1,6 @@
 package proxy
 
-type Log struct {
-	RequestID string
-	Command   string
-	Term      int64
-}
+import "github.com/musenwill/raftdemo/model"
 
 type AppendEntries struct {
 	Term         int64
@@ -12,7 +8,7 @@ type AppendEntries struct {
 	PrevLogIndex int64
 	PrevLogTerm  int64
 	LeaderCommit int64
-	Entries      []Log
+	Entries      []model.Log
 }
 
 type RequestVote struct {

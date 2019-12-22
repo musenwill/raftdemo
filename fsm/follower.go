@@ -1,127 +1,117 @@
 package fsm
 
 import (
-	"time"
-
-	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/proxy"
 	"go.uber.org/zap"
 )
 
 type Follower struct {
-	*Server     // embed server
+	Prober
+	votedFor    string
 	leaderID    string
 	stateLogger *zap.SugaredLogger
 }
 
-func NewFollower(s *Server, conf *config.Config) *Follower {
-	return &Follower{s, "", s.logger.With("state", StateEnum.Follower)}
+func NewFollower(s Prober, logger *zap.SugaredLogger) *Follower {
+	return &Follower{s, "", "", logger.With("state", StateEnum.Follower)}
 }
 
 func (p *Follower) implStateInterface() {
 	var _ State = &Follower{}
 }
 
-func (p *Follower) getLogger() *zap.SugaredLogger {
+func (p *Follower) GetLogger() *zap.SugaredLogger {
 	return p.stateLogger
 }
 
-func (p *Follower) enterState() {
-	p.stateLogger.Infow("enter state", "term", p.currentTerm, "voteFor", p.votedFor,
-		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
+func (p *Follower) EnterState() {
+	p.stateLogger.Infow("enter state", "term", p.GetTerm(), "voteFor", p.votedFor,
+		"commitIndex", p.GetCommitIndex(), "lastApplied", p.GetLastAppliedIndex())
 	p.resetTimer()
 	p.votedFor = ""
 }
 
-func (p *Follower) leaveState() {
-	p.stateLogger.Infow("leave state", "term", p.currentTerm, "voteFor", p.votedFor,
-		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
+func (p *Follower) LeaveState() {
+	p.stateLogger.Infow("leave state", "term", p.GetTerm(), "voteFor", p.votedFor,
+		"commitIndex", p.GetCommitIndex(), "lastApplied", p.GetLastAppliedIndex())
 }
 
-func (p *Follower) onAppendEntries(param proxy.AppendEntries) proxy.Response {
+func (p *Follower) OnAppendEntries(param proxy.AppendEntries) proxy.Response {
 	p.resetTimer()
 
 	// 1. reply false if term < currentTerm
-	if param.Term < p.getCurrentTerm() {
-		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
+	if param.Term < p.GetTerm() {
+		return proxy.Response{Term: p.GetTerm(), Success: false}
 	}
-	p.setCurrentTerm(param.Term)
+	p.SetTerm(param.Term)
 	p.leaderID = param.LeaderID
 
 	// not a heartbeat request
 	if len(param.Entries) > 0 {
-		// 2. reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm
+		// 2. reply false if log dose’t contain an entry at prevLogIndex whose term matches prevLogTerm
 		if param.PrevLogIndex >= 0 {
-			if param.PrevLogIndex > p.lastLogIndex() || p.logs[param.PrevLogIndex].Term != param.PrevLogTerm {
-				return proxy.Response{Term: p.getCurrentTerm(), Success: false}
+			if param.PrevLogIndex > p.GetLastLogIndex() || p.GetLog(param.PrevLogIndex).Term != param.PrevLogTerm {
+				return proxy.Response{Term: p.GetTerm(), Success: false}
 			}
 		}
-
-		// 3. if an existing entry conflicts with a new one (same index but different terms),
-		//    delete the existing entry and all that follow it
-		p.logs = p.logs[:param.PrevLogIndex+1]
-
-		// 4. Append any new entries not already in the log
-		p.logs = append(p.logs, param.Entries...)
+		p.AppendLog(param)
 	}
 
 	// 5. if leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
-	if param.LeaderCommit > p.getCommitIndex() {
+	if param.LeaderCommit > p.GetCommitIndex() {
 		newIndex := param.LeaderCommit
-		if p.lastLogIndex() < newIndex {
-			newIndex = p.lastLogIndex()
+		if p.GetLastLogIndex() < newIndex {
+			newIndex = p.GetLastLogIndex()
 		}
-		p.setCommitIndex(newIndex)
+		p.SetCommitIndex(newIndex)
 	}
 
-	return proxy.Response{Term: p.getCurrentTerm(), Success: true}
+	return proxy.Response{Term: p.GetTerm(), Success: true}
 }
 
-func (p *Follower) onRequestVote(param proxy.RequestVote) proxy.Response {
+func (p *Follower) OnRequestVote(param proxy.RequestVote) proxy.Response {
 	p.resetTimer()
 
-	if param.Term < p.getCurrentTerm() {
-		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
+	term := p.GetTerm()
+	if param.Term < term {
+		return proxy.Response{Term: term, Success: false}
 	}
 
 	// a new round of election
-	if param.Term > p.getCurrentTerm() {
-		p.setCurrentTerm(param.Term)
+	if param.Term > term {
+		p.SetTerm(param.Term)
 		p.votedFor = ""
 	}
 
+	term = p.GetTerm()
+	lastLogIndex := p.GetLastLogIndex()
+	lastLogTerm := p.GetLog(lastLogIndex).Term
+
 	// have vote for other candidate in this term
 	if len(p.votedFor) > 0 && p.votedFor != param.CandidateID {
-		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
+		return proxy.Response{Term: p.GetTerm(), Success: false}
 	}
 
-	if p.lastLogIndex() >= 0 {
-		if p.logs[p.lastLogIndex()].Term > param.LastLogTerm {
-			return proxy.Response{Term: p.getCurrentTerm(), Success: false}
+	if p.GetLastLogIndex() >= 0 {
+		if lastLogTerm > param.LastLogTerm {
+			return proxy.Response{Term: p.GetTerm(), Success: false}
 		}
-		if p.logs[p.lastLogIndex()].Term == param.LastLogTerm {
-			if p.lastLogIndex() > param.LastLogIndex {
-				return proxy.Response{Term: p.getCurrentTerm(), Success: false}
+		if lastLogTerm == param.LastLogTerm {
+			if lastLogIndex > param.LastLogIndex {
+				return proxy.Response{Term: term, Success: false}
 			}
 		}
 	}
 
 	p.votedFor = param.CandidateID
-	return proxy.Response{Term: p.getCurrentTerm(), Success: true}
+	return proxy.Response{Term: term, Success: true}
 }
 
-func (p *Follower) timeout() {
-	p.transferState(StateEnum.Candidate)
+func (p *Follower) Timeout() {
+	p.NotifyTransferState(StateEnum.Candidate)
 }
 
 // reset timer for follower, as time configured
-func (p *Server) resetTimer() {
-	p.timerLock.Lock()
-	defer p.timerLock.Unlock()
-
-	if p.timer == nil {
-		p.timer = time.NewTimer(time.Duration(p.config.Timeout) * time.Millisecond)
-	} else {
-		p.timer.Reset(time.Duration(p.config.Timeout) * time.Millisecond)
-	}
+func (p *Follower) resetTimer() {
+	p.SetTimer(p.GetConfig().GetReplicateTimeout())
 }

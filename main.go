@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	committer2 "github.com/musenwill/raftdemo/committer"
+	"github.com/musenwill/raftdemo/model"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -18,20 +20,24 @@ func main() {
 	time.Sleep(time.Second * 2)
 
 	nodeNum, _ := strconv.Atoi(os.Args[1])
-	var nodes []config.Node
+	var nodes []model.Node
 	for i := 1; i <= nodeNum; i++ {
-		nodes = append(nodes, config.Node{ID: fmt.Sprintf("node-%d", i)})
+		nodes = append(nodes, model.Node{ID: fmt.Sprintf("node-%d", i)})
 	}
-	proxy.Config(nodes)
+	chanProxy := proxy.NewChanProxy()
+	chanProxy.Register(nodes)
 
 	logger := common.NewLogger(common.DefaultZapConfig("raft.log"))
-	config := &config.Config{Timeout: 5000, MaxReplicate: 1, Nodes: nodes}
-	committer, _ := fsm.NewFileCommitter("commit.txt")
+	conf := config.NewDefaultConfig(nodes, 1000, 1)
+	conf.(*config.DefaultConfig).Check()
+	committer, _ := committer2.NewFileCommitter("commit.txt")
 
 	for _, node := range nodes {
-		server := fsm.NewServer(node.ID, committer, config, logger)
+		server := fsm.NewServer(node.ID, committer, conf, logger)
 		server.Run()
 	}
 
-	http.ListenAndServe(":8080", nil)
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		panic(err)
+	}
 }

@@ -1,4 +1,4 @@
-package fsm
+package committer
 
 import (
 	"io"
@@ -6,10 +6,6 @@ import (
 
 	"github.com/musenwill/raftdemo/proxy"
 )
-
-type Committer interface {
-	Commit(log proxy.Log) error
-}
 
 type FileCommitter struct {
 	filePath string

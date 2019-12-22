@@ -1,7 +1,6 @@
 package fsm
 
 import (
-	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/proxy"
 	"go.uber.org/zap"
 )
@@ -10,33 +9,33 @@ type Dummy struct {
 	stateLogger *zap.SugaredLogger
 }
 
-func NewDummyState(s *Server, config *config.Config) *Dummy {
-	return &Dummy{s.logger.With("state", StateEnum.None)}
+func NewDummyState(s Loggable) *Dummy {
+	return &Dummy{s.GetLogger().With("state", StateEnum.None)}
 }
 
 func (p *Dummy) implStateInterface() {
 	var _ State = &Dummy{}
 }
 
-func (p *Dummy) getLogger() *zap.SugaredLogger {
+func (p *Dummy) GetLogger() *zap.SugaredLogger {
 	return p.stateLogger
 }
 
-func (p *Dummy) enterState() {
+func (p *Dummy) EnterState() {
 	p.stateLogger.Info("enter state")
 }
 
-func (p *Dummy) leaveState() {
+func (p *Dummy) LeaveState() {
 	p.stateLogger.Info("leave state")
 }
 
-func (p *Dummy) onAppendEntries(param proxy.AppendEntries) proxy.Response {
+func (p *Dummy) OnAppendEntries(param proxy.AppendEntries) proxy.Response {
 	return proxy.Response{}
 }
 
-func (p *Dummy) onRequestVote(param proxy.RequestVote) proxy.Response {
+func (p *Dummy) OnRequestVote(param proxy.RequestVote) proxy.Response {
 	return proxy.Response{}
 }
 
-func (p *Dummy) timeout() {
+func (p *Dummy) Timeout() {
 }

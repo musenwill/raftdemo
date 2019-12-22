@@ -1,29 +1,21 @@
 package fsm
 
 import (
-	"math/rand"
-	"sync"
-	"time"
-
-	"github.com/musenwill/raftdemo/config"
+	"fmt"
 	"github.com/musenwill/raftdemo/proxy"
 	"go.uber.org/zap"
+	"math/rand"
+	"sync"
 )
 
 type Candidate struct {
-	*Server      // embed server
+	Prober
 	stopElection chan bool
 	stateLogger  *zap.SugaredLogger
-
-	stopElectionLock *sync.Mutex
 }
 
-func NewCandidate(s *Server, config *config.Config) *Candidate {
-	return &Candidate{
-		Server:           s,
-		stopElection:     nil,
-		stateLogger:      s.logger.With("state", StateEnum.Candidate),
-		stopElectionLock: &sync.Mutex{},
+func NewCandidate(s Prober, logger *zap.SugaredLogger) *Candidate {
+	return &Candidate{s, nil, logger.With("state", StateEnum.Candidate),
 	}
 }
 
@@ -31,48 +23,45 @@ func (p *Candidate) implStateInterface() {
 	var _ State = &Candidate{}
 }
 
-func (p *Candidate) getLogger() *zap.SugaredLogger {
+func (p *Candidate) GetLogger() *zap.SugaredLogger {
 	return p.stateLogger
 }
 
-func (p *Candidate) enterState() {
-	p.stateLogger.Infow("enter state", "term", p.currentTerm, "voteFor", p.votedFor,
-		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
+func (p *Candidate) EnterState() {
+	p.stateLogger.Infow("enter state", "term", p.GetTerm(),
+		"commitIndex", p.GetCommitIndex(), "lastApplied", p.GetLastAppliedIndex())
 	p.randomResetTimer()
-	p.resetStopElection()
 }
 
-func (p *Candidate) leaveState() {
+func (p *Candidate) LeaveState() {
 	p.resetStopElection()
-	p.stateLogger.Infow("leave state", "term", p.currentTerm, "voteFor", p.votedFor,
-		"commitIndex", p.commitIndex, "lastAplied", p.lastAplied)
+	p.stateLogger.Infow("leave state", "term", p.GetTerm(),
+		"commitIndex", p.GetCommitIndex(), "lastApplied", p.GetLastAppliedIndex())
 }
 
-func (p *Candidate) onAppendEntries(param proxy.AppendEntries) proxy.Response {
-	if param.Term < p.getCurrentTerm() {
-		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
+func (p *Candidate) OnAppendEntries(param proxy.AppendEntries) proxy.Response {
+	if param.Term < p.GetTerm() {
+		return proxy.Response{Term: p.GetTerm(), Success: false}
 	} else {
-		p.transferState(StateEnum.Follower)
-		return p.getCurrentState().onAppendEntries(param)
+		p.NotifyTransferState(StateEnum.Follower)
+		return p.GetCurrentState().OnAppendEntries(param)
 	}
 }
 
-func (p *Candidate) onRequestVote(param proxy.RequestVote) proxy.Response {
-	if param.Term <= p.getCurrentTerm() {
-		return proxy.Response{Term: p.getCurrentTerm(), Success: false}
+func (p *Candidate) OnRequestVote(param proxy.RequestVote) proxy.Response {
+	if param.Term <= p.GetTerm() {
+		return proxy.Response{Term: p.GetTerm(), Success: false}
 	} else {
-		p.transferState(StateEnum.Follower)
-		return p.getCurrentState().onRequestVote(param)
+		p.NotifyTransferState(StateEnum.Follower)
+		return p.GetCurrentState().OnRequestVote(param)
 	}
 }
 
-func (p *Candidate) timeout() {
-	p.enterState()
+func (p *Candidate) Timeout() {
+	p.EnterState()
+	p.IncreaseTerm()
 
-	p.increaseCurrentTerm()
-	p.votedFor = p.id
 	vote := make(chan bool)
-
 	go p.countVote(vote)
 	go p.canvass(vote)
 }
@@ -94,80 +83,90 @@ func (p *Candidate) countVote(vote <-chan bool) {
 			count++
 
 			// win the election
-			if count > p.config.Len()/2 {
-				p.transferState(StateEnum.Leader)
+			if count > p.GetConfig().GetNodeCount()/2 {
+				p.NotifyTransferState(StateEnum.Leader)
 				return
 			}
 		}
 	}
 }
 
-func (p *Candidate) canvass(vote chan<- bool) {
+func (p *Candidate) canvassJob(vote chan<- bool) {
 	defer close(vote)
 	// give self a vote firstly
 	vote <- true
 
 	wg := &sync.WaitGroup{}
-	for _, n := range p.config.Nodes {
-		node := n
-		if node.ID == p.id {
+	wg.Add(p.GetConfig().GetNodeCount() - 1)
+	for _, n := range p.GetConfig().GetNodes() {
+		nodeID := n.ID
+		if nodeID == p.GetHost() {
 			continue
 		}
-		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
-
-			var lastLogTerm int64 = 0
-			lastLogIndex := p.lastLogIndex()
-			if lastLogIndex >= 0 {
-				lastLogTerm = p.logs[lastLogIndex].Term
-			}
-			request := proxy.RequestVote{
-				Term:         p.getCurrentTerm(),
-				CandidateID:  p.id,
-				LastLogIndex: lastLogIndex,
-				LastLogTerm:  lastLogTerm}
-
-			select {
-			case <-p.stopElection:
-				return
-			case proxy.RequestVoteRequestSender(node.ID) <- request:
-				select {
-				case <-p.stopElection:
-					return
-				case response := <-proxy.RequestVoteResponseReader(node.ID):
-					if response.Term > p.getCurrentTerm() {
-						p.transferState(StateEnum.Follower)
-						return
-					}
-					if response.Success {
-						vote <- true
-					}
-				}
-			}
+			p.canvass(nodeID, vote)
 		}()
 	}
 	wg.Wait()
 }
 
-// reset timer for candidate randomly
-func (p *Server) randomResetTimer() {
-	randTime := rand.Int()*87383%p.config.Timeout + p.config.Timeout/2
+func (p *Candidate) canvass(nodeID string, vote chan<- bool) {
+	var lastLogTerm int64 = 0
+	lastLogIndex := p.GetLastLogIndex()
+	if lastLogIndex >= 0 {
+		lastLogTerm = p.GetLogs()[lastLogIndex].Term
+	}
+	request := proxy.RequestVote{
+		Term:         p.GetTerm(),
+		CandidateID:  p.GetHost(),
+		LastLogIndex: lastLogIndex,
+		LastLogTerm:  lastLogTerm}
 
-	p.timerLock.Lock()
-	defer p.timerLock.Unlock()
+	voteRequestSender, err := p.GetProxy().VoteRequestSender(nodeID)
+	if err != nil {
+		p.stateLogger.Error(err)
+		return
+	}
+	voteResponseReader, err := p.GetProxy().VoteResponseReader(nodeID)
+	if err != nil {
+		p.stateLogger.Error(err)
+		return
+	}
 
-	if p.timer == nil {
-		p.timer = time.NewTimer(time.Duration(randTime) * time.Millisecond)
-	} else {
-		p.timer.Reset(time.Duration(randTime) * time.Millisecond)
+	select {
+	case <-p.stopElection:
+		return
+	case voteRequestSender <- request:
+		select {
+		case <-p.stopElection:
+			return
+		case response, ok := <-voteResponseReader:
+			if !ok {
+				p.stateLogger.Error(fmt.Sprintf("vote response channel of node %s closed", nodeID))
+				return
+			}
+			if response.Term > p.GetTerm() {
+				p.NotifyTransferState(StateEnum.Follower)
+				return
+			}
+			if response.Success {
+				vote <- true
+			}
+		}
 	}
 }
 
-func (p *Candidate) resetStopElection() {
-	p.stopElectionLock.Lock()
-	defer p.stopElectionLock.Unlock()
+// reset timer for candidate randomly
+func (p *Candidate) randomResetTimer() {
+	confTimeout := p.GetConfig().GetReplicateTimeout()
+	randTime := rand.Int63()*87383%confTimeout + confTimeout/2
+	p.SetTimer(randTime)
+	p.resetStopElection()
+}
 
+func (p *Candidate) resetStopElection() {
 	if p.stopElection != nil {
 		close(p.stopElection)
 	}
