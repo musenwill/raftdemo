@@ -81,7 +81,6 @@ func (p *Leader) Timeout() {
 
 func (p *Leader) replicateJob() {
 	wg := &sync.WaitGroup{}
-	wg.Add(p.GetConfig().GetNodeCount() - 1)
 	hostID := p.GetHost()
 
 	for _, n := range p.GetConfig().GetNodes() {
@@ -89,84 +88,83 @@ func (p *Leader) replicateJob() {
 		if node.ID == hostID {
 			continue
 		}
-		go func() {
-			defer wg.Done()
 
-			select {
-			case <-p.stopReplicate:
-				return
-			default:
+		select {
+		case <-p.stopReplicate:
+			return
+		default:
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				p.replicate(node.ID)
-			}
-		}()
+			}()
+		}
 	}
 
 	wg.Wait()
 }
 
 func (p *Leader) replicate(nodeID string) {
-	for {
-		lastLogIndex := p.GetLastLogIndex()
-		nextLogIndex := p.nIndex[nodeID].nextIndex
-		preLogIndex := nextLogIndex - 1
-		replicationBound := nextLogIndex + int64(p.GetConfig().GetReplicateUnitSize())
-		if replicationBound > lastLogIndex+1 {
-			replicationBound = lastLogIndex + 1
-		}
-		var preLogTerm int64 = 0
-		if preLogIndex >= 0 {
-			preLogTerm = p.GetLog(preLogIndex).Term
-		}
+	lastLogIndex := p.GetLastLogIndex()
+	nextLogIndex := p.nIndex[nodeID].nextIndex
+	preLogIndex := nextLogIndex - 1
+	replicationBound := nextLogIndex + int64(p.GetConfig().GetReplicateUnitSize())
+	if replicationBound > lastLogIndex+1 {
+		replicationBound = lastLogIndex + 1
+	}
+	var preLogTerm int64 = 0
+	if preLogIndex >= 0 {
+		preLogTerm = p.GetLog(preLogIndex).Term
+	}
 
-		request := proxy.AppendEntries{
-			Term:         p.GetTerm(),
-			LeaderID:     p.GetHost(),
-			PrevLogIndex: preLogIndex,
-			PrevLogTerm:  preLogTerm,
-			LeaderCommit: p.GetCommitIndex(),
-			Entries:      p.GetLogs()[nextLogIndex:replicationBound],
-		}
+	request := proxy.AppendEntries{
+		Term:         p.GetTerm(),
+		LeaderID:     p.GetHost(),
+		PrevLogIndex: preLogIndex,
+		PrevLogTerm:  preLogTerm,
+		LeaderCommit: p.GetCommitIndex(),
+		Entries:      p.GetLogs()[nextLogIndex:replicationBound],
+	}
 
-		appendIndexRequestSender, err := p.GetProxy().AppendEntriesRequestSender(nodeID)
-		if err != nil {
-			p.stateLogger.Error(err)
-			return
-		}
-		appendIndexResponseReader, err := p.GetProxy().AppendEntriesResponseReader(nodeID)
-		if err != nil {
-			p.stateLogger.Error(err)
-			return
-		}
+	appendIndexRequestSender, err := p.GetProxy().AppendEntriesRequestSender(nodeID)
+	if err != nil {
+		p.stateLogger.Error(err)
+		return
+	}
+	appendIndexResponseReader, err := p.GetProxy().AppendEntriesResponseReader(nodeID)
+	if err != nil {
+		p.stateLogger.Error(err)
+		return
+	}
 
+	select {
+	case <-p.stopReplicate:
+		return
+	case appendIndexRequestSender <- request:
 		select {
 		case <-p.stopReplicate:
 			return
-		case appendIndexRequestSender <- request:
-			select {
-			case <-p.stopReplicate:
-				return
-			case response, ok := <-appendIndexResponseReader:
-				if !ok {
-					p.stateLogger.Error(fmt.Sprintf("append index response channel of node %s closed", nodeID))
-					return
-				}
-
-				if response.Term > p.GetTerm() {
-					p.NotifyTransferState(StateEnum.Follower)
-					return
-				}
-				// update commit index
-				if response.Success {
-					p.updateCommitIndex(nodeID, replicationBound)
-					return
-				}
-				// if failed, just retry util reach bottom
-				p.nIndex[nodeID].nextIndex--
-				if p.nIndex[nodeID].nextIndex < 0 {
-					p.nIndex[nodeID].nextIndex = 0
-				}
+		case response, ok := <-appendIndexResponseReader:
+			if !ok {
+				p.stateLogger.Error(fmt.Sprintf("append index response channel of node %s closed", nodeID))
 				return
 			}
+
+			if response.Term > p.GetTerm() {
+				p.NotifyTransferState(StateEnum.Follower)
+				return
+			}
+			// update commit index
+			if response.Success {
+				p.updateCommitIndex(nodeID, replicationBound)
+				return
+			}
+			// if failed, just retry util reach bottom
+			p.nIndex[nodeID].nextIndex--
+			if p.nIndex[nodeID].nextIndex < 0 {
+				p.nIndex[nodeID].nextIndex = 0
+			}
+			return
 		}
 	}
 }

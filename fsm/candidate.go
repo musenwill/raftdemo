@@ -15,8 +15,7 @@ type Candidate struct {
 }
 
 func NewCandidate(s Prober, logger *zap.SugaredLogger) *Candidate {
-	return &Candidate{s, nil, logger.With("state", StateEnum.Candidate),
-	}
+	return &Candidate{s, nil, logger.With("state", StateEnum.Candidate)}
 }
 
 func (p *Candidate) implStateInterface() {
@@ -63,7 +62,7 @@ func (p *Candidate) Timeout() {
 
 	vote := make(chan bool)
 	go p.countVote(vote)
-	go p.canvass(vote)
+	go p.canvassJob(vote)
 }
 
 func (p *Candidate) countVote(vote <-chan bool) {
@@ -97,17 +96,22 @@ func (p *Candidate) canvassJob(vote chan<- bool) {
 	vote <- true
 
 	wg := &sync.WaitGroup{}
-	wg.Add(p.GetConfig().GetNodeCount() - 1)
 	for _, n := range p.GetConfig().GetNodes() {
 		nodeID := n.ID
 		if nodeID == p.GetHost() {
 			continue
 		}
 
-		go func() {
-			defer wg.Done()
-			p.canvass(nodeID, vote)
-		}()
+		select {
+		case <-p.stopElection:
+			return
+		default:
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				p.canvass(nodeID, vote)
+			}()
+		}
 	}
 	wg.Wait()
 }

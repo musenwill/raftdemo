@@ -29,12 +29,12 @@ func main() {
 
 	logger := common.NewLogger(common.DefaultZapConfig("raft.log"))
 	conf := config.NewDefaultConfig(nodes, 1000, 1)
-	conf.(*config.DefaultConfig).Check()
+	conf.Check()
 	committer, _ := committer2.NewFileCommitter("commit.txt")
 
 	for _, node := range nodes {
-		server := fsm.NewServer(node.ID, committer, conf, logger)
-		server.Run()
+		server := fsm.NewServer(node.ID, committer, chanProxy, conf, logger)
+		server.Start()
 	}
 
 	if err := http.ListenAndServe(":8080", nil); err != nil {

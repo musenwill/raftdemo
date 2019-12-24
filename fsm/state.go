@@ -328,11 +328,11 @@ func (p *Server) transferState(state StateName) {
 	p.state = state
 	var newState State
 	if state == StateEnum.Follower {
-		newState = NewFollower(p)
+		newState = NewFollower(p, p.logger)
 	} else if state == StateEnum.Candidate {
-		newState = NewCandidate(p)
+		newState = NewCandidate(p, p.logger)
 	} else if state == StateEnum.Leader {
-		newState = NewLeader(p, p.config.GetNodes())
+		newState = NewLeader(p, p.logger, p.config.GetNodes())
 	} else {
 		newState = NewDummyState(p)
 	}

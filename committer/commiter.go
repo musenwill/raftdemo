@@ -4,7 +4,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/musenwill/raftdemo/proxy"
+	"github.com/musenwill/raftdemo/model"
 )
 
 type FileCommitter struct {
@@ -24,7 +24,7 @@ func (p *FileCommitter) implCommitterInterface() {
 	var _ Committer = &FileCommitter{}
 }
 
-func (p *FileCommitter) Commit(log proxy.Log) error {
+func (p *FileCommitter) Commit(log model.Log) error {
 	_, err := p.writer.Write([]byte(log.Command))
 	return err
 }

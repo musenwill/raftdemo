@@ -1,8 +1,7 @@
 package committer
 
-import "github.com/musenwill/raftdemo/proxy"
+import "github.com/musenwill/raftdemo/model"
 
 type Committer interface {
-	Commit(log proxy.Log) error
+	Commit(log model.Log) error
 }
-

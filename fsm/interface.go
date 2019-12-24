@@ -31,7 +31,7 @@ type Prober interface {
 	Start()
 	Stop()
 
-	SetTimer(time int64)	// milliseconds
+	SetTimer(time int64) // milliseconds
 	ResetTimer()
 
 	GetHost() string
