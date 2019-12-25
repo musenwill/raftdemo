@@ -23,9 +23,8 @@ type Server struct {
 	currentState State
 	state        StateName
 
-	commitNotifier        chan bool      // notify to commit
-	stopNotifier          chan bool      // notify to stop the server
-	transferStateNotifier chan StateName // notify to transfer state
+	commitNotifier chan bool // notify to commit
+	stopNotifier   chan bool // notify to stop the server
 
 	config    config.Config
 	logger    *zap.SugaredLogger
@@ -45,9 +44,8 @@ func NewServer(id string, committer committer.Committer, proxy proxy.Proxy,
 		lastApplied: -1, // similar to commitIndex
 		logs:        make([]model.Log, 0),
 
-		commitNotifier:        make(chan bool),
-		stopNotifier:          make(chan bool),
-		transferStateNotifier: make(chan StateName),
+		commitNotifier: make(chan bool),
+		stopNotifier:   make(chan bool),
 
 		config:    conf,
 		logger:    logger.With("node", id),
@@ -68,7 +66,7 @@ func (p *Server) implProber() {
 }
 
 func (p *Server) Start() {
-	p.transferState(StateEnum.Follower)
+	p.TransferState(StateEnum.Follower)
 	p.logger.Info("init state as follower")
 
 	go p.commitTask()
@@ -79,7 +77,7 @@ func (p *Server) Start() {
 }
 
 func (p *Server) Stop() {
-	p.transferState(StateEnum.None)
+	p.TransferState(StateEnum.None)
 	p.timer.Stop()
 
 	close(p.stopNotifier)
@@ -91,9 +89,9 @@ func (p *Server) Stop() {
 
 func (p *Server) SetTimer(t int64) {
 	if p.timer == nil {
-		p.timer = time.NewTimer(time.Duration(t))
+		p.timer = time.NewTimer(time.Duration(int64(time.Millisecond) * t))
 	} else {
-		p.timer.Reset(time.Duration(t))
+		p.timer.Reset(time.Duration(int64(time.Millisecond) * t))
 	}
 }
 
@@ -117,10 +115,6 @@ func (p *Server) GetCurrentState() State {
 	defer p.stateLock.RUnlock()
 
 	return p.currentState
-}
-
-func (p *Server) NotifyTransferState(state StateName) {
-	p.transferStateNotifier <- state
 }
 
 func (p *Server) GetTerm() int64 {
@@ -226,42 +220,30 @@ func (p *Server) fsmTask() {
 				return
 			}
 			p.logState()
-			p.currentState.Timeout()
-		case stateName, ok := <-p.transferStateNotifier:
-			if !ok {
-				p.logger.Info("state transfer notifier closed")
-				return
-			}
-			p.transferState(stateName)
+			p.GetCurrentState().Timeout()
 		case request, ok := <-appendEntriesRequestReader:
 			if !ok {
 				p.logger.Error(fmt.Sprintf("append entries request channel of node %s closed", p.id))
 				break
 			}
 
-			p.currentState.GetLogger().Debugw("receive append entries request", "term", p.currentTerm,
+			p.GetCurrentState().GetLogger().Debugw("receive append entries request", "term", p.currentTerm,
 				"commitIndex", p.commitIndex, "lastApplied", p.lastApplied, "body", request)
-			response := p.currentState.OnAppendEntries(request)
+			response := p.GetCurrentState().OnAppendEntries(request)
 
 			select {
 			case <-p.stopNotifier:
 				return
-			case <-p.timer.C:
+			case _, ok := <-p.timer.C:
 				if !ok {
 					p.logger.Info("timer closed")
 					return
 				}
 
 				p.logState()
-				p.currentState.Timeout()
-			case stateName, ok := <-p.transferStateNotifier:
-				if !ok {
-					p.logger.Info("state transfer notifier closed")
-					return
-				}
-				p.transferState(stateName)
+				p.GetCurrentState().Timeout()
 			case appendEntriesResponseSender <- response:
-				p.currentState.GetLogger().Debugw("send append entries response", "body", response)
+				p.GetCurrentState().GetLogger().Debugw("send append entries response", "body", response)
 			}
 		case request, ok := <-voteRequestReader:
 			if !ok {
@@ -269,29 +251,23 @@ func (p *Server) fsmTask() {
 				break
 			}
 
-			p.currentState.GetLogger().Debugw("receive request vote request", "term", p.currentTerm,
+			p.GetCurrentState().GetLogger().Debugw("receive request vote request", "term", p.currentTerm,
 				"commitIndex", p.commitIndex, "lastApplied", p.lastApplied, "body", request)
-			response := p.currentState.OnRequestVote(request)
+			response := p.GetCurrentState().OnRequestVote(request)
 
 			select {
 			case <-p.stopNotifier:
 				return
-			case <-p.timer.C:
+			case _, ok := <-p.timer.C:
 				if !ok {
 					p.logger.Info("timer closed")
 					return
 				}
 
 				p.logState()
-				p.currentState.Timeout()
-			case stateName, ok := <-p.transferStateNotifier:
-				if !ok {
-					p.logger.Info("state transfer notifier closed")
-					return
-				}
-				p.transferState(stateName)
+				p.GetCurrentState().Timeout()
 			case voteResponseSender <- response:
-				p.currentState.GetLogger().Debugw("send vote response", "body", response)
+				p.GetCurrentState().GetLogger().Debugw("send vote response", "body", response)
 			}
 		}
 	}
@@ -313,7 +289,7 @@ func (p *Server) commitTask() {
 	}
 }
 
-func (p *Server) transferState(state StateName) {
+func (p *Server) TransferState(state StateName) {
 	p.stateLock.Lock()
 	defer p.stateLock.Unlock()
 
@@ -345,6 +321,6 @@ func (p *Server) GetLogger() *zap.SugaredLogger {
 }
 
 func (p *Server) logState() {
-	p.currentState.GetLogger().Infow("Timeout", "term", p.currentTerm,
+	p.GetCurrentState().GetLogger().Infow("Timeout", "term", p.currentTerm,
 		"commitIndex", p.commitIndex, "lastApplied", p.lastApplied)
 }

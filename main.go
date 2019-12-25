@@ -28,7 +28,7 @@ func main() {
 	chanProxy.Register(nodes)
 
 	logger := common.NewLogger(common.DefaultZapConfig("raft.log"))
-	conf := config.NewDefaultConfig(nodes, 1000, 1)
+	conf := config.NewDefaultConfig(nodes, 1000, 1000)
 	conf.Check()
 	committer, _ := committer2.NewFileCommitter("commit.txt")
 

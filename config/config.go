@@ -21,7 +21,7 @@ type DefaultConfig struct {
 	Nodes     []model.Node
 	NodesLock *sync.RWMutex
 
-	ReplicateTimeout     int64
+	ReplicateTimeout     int64 // milliseconds
 	ReplicateTimeoutLock *sync.RWMutex
 
 	ReplicateUnitSize     int

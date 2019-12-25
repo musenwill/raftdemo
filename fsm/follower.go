@@ -82,17 +82,16 @@ func (p *Follower) OnRequestVote(param proxy.RequestVote) proxy.Response {
 		p.SetTerm(param.Term)
 		p.votedFor = ""
 	}
-
 	term = p.GetTerm()
-	lastLogIndex := p.GetLastLogIndex()
-	lastLogTerm := p.GetLog(lastLogIndex).Term
 
 	// have vote for other candidate in this term
 	if len(p.votedFor) > 0 && p.votedFor != param.CandidateID {
 		return proxy.Response{Term: p.GetTerm(), Success: false}
 	}
 
-	if p.GetLastLogIndex() >= 0 {
+	lastLogIndex := p.GetLastLogIndex()
+	if lastLogIndex >= 0 {
+		lastLogTerm := p.GetLog(lastLogIndex).Term
 		if lastLogTerm > param.LastLogTerm {
 			return proxy.Response{Term: p.GetTerm(), Success: false}
 		}
@@ -108,7 +107,7 @@ func (p *Follower) OnRequestVote(param proxy.RequestVote) proxy.Response {
 }
 
 func (p *Follower) Timeout() {
-	p.NotifyTransferState(StateEnum.Candidate)
+	p.TransferState(StateEnum.Candidate)
 }
 
 // reset timer for follower, as time configured

@@ -5,7 +5,6 @@ import (
 	"github.com/musenwill/raftdemo/proxy"
 	"go.uber.org/zap"
 	"math/rand"
-	"sync"
 )
 
 type Candidate struct {
@@ -42,7 +41,7 @@ func (p *Candidate) OnAppendEntries(param proxy.AppendEntries) proxy.Response {
 	if param.Term < p.GetTerm() {
 		return proxy.Response{Term: p.GetTerm(), Success: false}
 	} else {
-		p.NotifyTransferState(StateEnum.Follower)
+		p.TransferState(StateEnum.Follower)
 		return p.GetCurrentState().OnAppendEntries(param)
 	}
 }
@@ -51,7 +50,7 @@ func (p *Candidate) OnRequestVote(param proxy.RequestVote) proxy.Response {
 	if param.Term <= p.GetTerm() {
 		return proxy.Response{Term: p.GetTerm(), Success: false}
 	} else {
-		p.NotifyTransferState(StateEnum.Follower)
+		p.TransferState(StateEnum.Follower)
 		return p.GetCurrentState().OnRequestVote(param)
 	}
 }
@@ -83,7 +82,7 @@ func (p *Candidate) countVote(vote <-chan bool) {
 
 			// win the election
 			if count > p.GetConfig().GetNodeCount()/2 {
-				p.NotifyTransferState(StateEnum.Leader)
+				p.TransferState(StateEnum.Leader)
 				return
 			}
 		}
@@ -91,11 +90,8 @@ func (p *Candidate) countVote(vote <-chan bool) {
 }
 
 func (p *Candidate) canvassJob(vote chan<- bool) {
-	defer close(vote)
 	// give self a vote firstly
 	vote <- true
-
-	wg := &sync.WaitGroup{}
 	for _, n := range p.GetConfig().GetNodes() {
 		nodeID := n.ID
 		if nodeID == p.GetHost() {
@@ -106,14 +102,11 @@ func (p *Candidate) canvassJob(vote chan<- bool) {
 		case <-p.stopElection:
 			return
 		default:
-			wg.Add(1)
 			go func() {
-				defer wg.Done()
 				p.canvass(nodeID, vote)
 			}()
 		}
 	}
-	wg.Wait()
 }
 
 func (p *Candidate) canvass(nodeID string, vote chan<- bool) {
@@ -152,7 +145,7 @@ func (p *Candidate) canvass(nodeID string, vote chan<- bool) {
 				return
 			}
 			if response.Term > p.GetTerm() {
-				p.NotifyTransferState(StateEnum.Follower)
+				p.TransferState(StateEnum.Follower)
 				return
 			}
 			if response.Success {

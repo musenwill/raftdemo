@@ -38,7 +38,7 @@ type Prober interface {
 
 	GetState() StateName
 	GetCurrentState() State
-	NotifyTransferState(state StateName)
+	TransferState(state StateName)
 
 	GetTerm() int64
 	SetTerm(i int64)

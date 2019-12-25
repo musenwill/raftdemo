@@ -59,7 +59,7 @@ func (p *Leader) OnAppendEntries(param proxy.AppendEntries) proxy.Response {
 	if param.Term <= term {
 		return proxy.Response{Term: term, Success: false}
 	} else {
-		p.NotifyTransferState(StateEnum.Follower)
+		p.TransferState(StateEnum.Follower)
 		return p.GetCurrentState().OnAppendEntries(param)
 	}
 }
@@ -69,7 +69,7 @@ func (p *Leader) OnRequestVote(param proxy.RequestVote) proxy.Response {
 	if param.Term <= term {
 		return proxy.Response{Term: term, Success: false}
 	} else {
-		p.NotifyTransferState(StateEnum.Follower)
+		p.TransferState(StateEnum.Follower)
 		return p.GetCurrentState().OnRequestVote(param)
 	}
 }
@@ -151,7 +151,7 @@ func (p *Leader) replicate(nodeID string) {
 			}
 
 			if response.Term > p.GetTerm() {
-				p.NotifyTransferState(StateEnum.Follower)
+				p.TransferState(StateEnum.Follower)
 				return
 			}
 			// update commit index
