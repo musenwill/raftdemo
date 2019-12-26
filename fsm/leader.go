@@ -173,8 +173,8 @@ func (p *Leader) replicate(nodeID string) {
 // to avoid follower Timeout
 func (p *Leader) rapidResetTimer() {
 	rapidTimer := int64(float64(p.GetConfig().GetReplicateTimeout()) * 0.8)
-	p.SetTimer(rapidTimer)
 	p.resetStopReplicate()
+	p.SetTimer(rapidTimer)
 }
 
 func (p *Leader) resetStopReplicate() {

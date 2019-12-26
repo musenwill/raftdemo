@@ -88,6 +88,7 @@ func (p *Server) Stop() {
 }
 
 func (p *Server) SetTimer(t int64) {
+	p.logger.Debugw(fmt.Sprintf("reset timer with %d milliseconds", t), "state", p.state, "term", p.currentTerm)
 	if p.timer == nil {
 		p.timer = time.NewTimer(time.Duration(int64(time.Millisecond) * t))
 	} else {
@@ -227,7 +228,7 @@ func (p *Server) fsmTask() {
 				break
 			}
 
-			p.GetCurrentState().GetLogger().Debugw("receive append entries request", "term", p.currentTerm,
+			p.logger.Debugw("receive append entries request", "state", p.state, "term", p.currentTerm,
 				"commitIndex", p.commitIndex, "lastApplied", p.lastApplied, "body", request)
 			response := p.GetCurrentState().OnAppendEntries(request)
 
@@ -243,7 +244,7 @@ func (p *Server) fsmTask() {
 				p.logState()
 				p.GetCurrentState().Timeout()
 			case appendEntriesResponseSender <- response:
-				p.GetCurrentState().GetLogger().Debugw("send append entries response", "body", response)
+				p.logger.Debugw("send append entries response", "state", p.state, "body", response)
 			}
 		case request, ok := <-voteRequestReader:
 			if !ok {
@@ -251,7 +252,7 @@ func (p *Server) fsmTask() {
 				break
 			}
 
-			p.GetCurrentState().GetLogger().Debugw("receive request vote request", "term", p.currentTerm,
+			p.logger.Debugw("receive request vote request", "state", p.state, "term", p.currentTerm,
 				"commitIndex", p.commitIndex, "lastApplied", p.lastApplied, "body", request)
 			response := p.GetCurrentState().OnRequestVote(request)
 
@@ -267,7 +268,7 @@ func (p *Server) fsmTask() {
 				p.logState()
 				p.GetCurrentState().Timeout()
 			case voteResponseSender <- response:
-				p.GetCurrentState().GetLogger().Debugw("send vote response", "body", response)
+				p.logger.Debugw("send vote response", "state", p.state, "body", response)
 			}
 		}
 	}
@@ -279,11 +280,11 @@ func (p *Server) commitTask() {
 		for i := p.lastApplied + 1; i <= p.GetCommitIndex(); i++ {
 			err := p.committer.Commit(p.logs[i])
 			if err != nil {
-				p.GetCurrentState().GetLogger().Errorw("commit log error", "logIndex", i, "log", p.logs[i], "err", err)
+				p.logger.Errorw("commit log error", "state", p.state, "logIndex", i, "log", p.logs[i], "err", err)
 				break
 			}
 			p.lastApplied++
-			p.GetCurrentState().GetLogger().Infow("succeed commit log", "logIndex", i, "term", p.currentTerm,
+			p.logger.Infow("succeed commit log", "state", p.state, "logIndex", i, "term", p.currentTerm,
 				"commitIndex", p.commitIndex, "lastApplied", p.lastApplied)
 		}
 	}
@@ -321,6 +322,6 @@ func (p *Server) GetLogger() *zap.SugaredLogger {
 }
 
 func (p *Server) logState() {
-	p.GetCurrentState().GetLogger().Infow("Timeout", "term", p.currentTerm,
+	p.logger.Infow("Timeout", "state", p.state, "term", p.currentTerm,
 		"commitIndex", p.commitIndex, "lastApplied", p.lastApplied)
 }

@@ -56,8 +56,8 @@ func (p *Candidate) OnRequestVote(param proxy.RequestVote) proxy.Response {
 }
 
 func (p *Candidate) Timeout() {
-	p.EnterState()
 	p.IncreaseTerm()
+	p.EnterState()
 
 	vote := make(chan bool)
 	go p.countVote(vote)
@@ -158,9 +158,9 @@ func (p *Candidate) canvass(nodeID string, vote chan<- bool) {
 // reset timer for candidate randomly
 func (p *Candidate) randomResetTimer() {
 	confTimeout := p.GetConfig().GetReplicateTimeout()
-	randTime := rand.Int63()*87383%confTimeout + confTimeout/2
-	p.SetTimer(randTime)
+	randTime := rand.Int63()%confTimeout + confTimeout/2
 	p.resetStopElection()
+	p.SetTimer(randTime)
 }
 
 func (p *Candidate) resetStopElection() {
