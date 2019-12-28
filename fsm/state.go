@@ -1,6 +1,7 @@
 package fsm
 
 import (
+	"errors"
 	"fmt"
 	"github.com/musenwill/raftdemo/committer"
 	"github.com/musenwill/raftdemo/model"
@@ -87,13 +88,20 @@ func (p *Server) Stop() {
 	p.logger.Info("stop commit task")
 }
 
-func (p *Server) SetTimer(t int64) {
+func (p *Server) SetTimer(t int64) error {
 	p.logger.Debugw(fmt.Sprintf("reset timer with %d milliseconds", t), "state", p.state, "term", p.currentTerm)
+
+	if t <= 0 {
+		return errors.New("timer should greater than 0")
+	}
+
 	if p.timer == nil {
 		p.timer = time.NewTimer(time.Duration(int64(time.Millisecond) * t))
 	} else {
 		p.timer.Reset(time.Duration(int64(time.Millisecond) * t))
 	}
+
+	return nil
 }
 
 func (p *Server) ResetTimer() {
@@ -122,8 +130,13 @@ func (p *Server) GetTerm() int64 {
 	return atomic.LoadInt64(&p.currentTerm)
 }
 
-func (p *Server) SetTerm(i int64) {
+func (p *Server) SetTerm(i int64) error {
+	if i < p.GetTerm() {
+		return errors.New("should not set term less than current term")
+	}
+
 	atomic.StoreInt64(&p.currentTerm, i)
+	return nil
 }
 
 func (p *Server) IncreaseTerm() {
@@ -134,17 +147,27 @@ func (p *Server) GetCommitIndex() int64 {
 	return atomic.LoadInt64(&p.commitIndex)
 }
 
-func (p *Server) SetCommitIndex(i int64) {
+func (p *Server) SetCommitIndex(i int64) error {
+	if i < p.GetCommitIndex() {
+		return errors.New("should not set commit index less than current commit index")
+	}
+
 	atomic.StoreInt64(&p.commitIndex, i)
 	p.commitNotifier <- true
+	return nil
 }
 
 func (p *Server) GetLastAppliedIndex() int64 {
 	return atomic.LoadInt64(&p.lastApplied)
 }
 
-func (p *Server) SetLastAppliedIndex(i int64) {
+func (p *Server) SetLastAppliedIndex(i int64) error {
+	if i < p.GetLastAppliedIndex() {
+		return errors.New("should not set applied index less than current applied index")
+	}
+
 	atomic.StoreInt64(&p.lastApplied, i)
+	return nil
 }
 
 func (p *Server) IncreaseLastAppliedIndex() {
@@ -181,12 +204,32 @@ func (p *Server) AppendLog(entries proxy.AppendEntries) {
 	p.logs = append(p.logs, entries.Entries...)
 }
 
+func (p *Server) AddLogs(logs ...model.Log) error {
+	if p.GetState() != StateEnum.Leader {
+		return errors.New("can not add logs to none leader host")
+	}
+
+	p.logsLock.Lock()
+	defer p.logsLock.Unlock()
+
+	p.logs = append(p.logs, logs...)
+	return nil
+}
+
 func (p *Server) GetConfig() config.Config {
 	return p.config
 }
 
 func (p *Server) GetProxy() proxy.Proxy {
 	return p.proxy
+}
+
+func (p *Server) GetLeader() string {
+	return p.GetCurrentState().GetLeader()
+}
+
+func (p *Server) GetVoteFor() string {
+	return p.GetCurrentState().GetVoteFor()
 }
 
 func (p *Server) fsmTask() {

@@ -79,6 +79,14 @@ func (p *Leader) Timeout() {
 	p.replicateJob()
 }
 
+func (p *Leader) GetLeader() string {
+	return ""
+}
+
+func (p *Leader) GetVoteFor() string {
+	return ""
+}
+
 func (p *Leader) replicateJob() {
 	wg := &sync.WaitGroup{}
 	hostID := p.GetHost()

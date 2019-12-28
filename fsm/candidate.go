@@ -64,6 +64,14 @@ func (p *Candidate) Timeout() {
 	go p.canvassJob(vote)
 }
 
+func (p *Candidate) GetLeader() string {
+	return ""
+}
+
+func (p *Candidate) GetVoteFor() string {
+	return ""
+}
+
 func (p *Candidate) countVote(vote <-chan bool) {
 	count := 0
 	defer func() {
