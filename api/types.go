@@ -19,3 +19,8 @@ type ListResponse struct {
 	Total   int           `json:"total"`
 	Entries []interface{} `json:"entries"`
 }
+
+type AddLogForm struct {
+	RequestID string `json:"request_id"`
+	Command   string `json:"command"`
+}

@@ -168,7 +168,7 @@ func (p *Candidate) randomResetTimer() {
 	confTimeout := p.GetConfig().GetReplicateTimeout()
 	randTime := rand.Int63()%confTimeout + confTimeout/2
 	p.resetStopElection()
-	p.SetTimer(randTime)
+	_ = p.SetTimer(randTime)
 }
 
 func (p *Candidate) resetStopElection() {

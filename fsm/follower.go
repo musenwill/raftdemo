@@ -43,14 +43,19 @@ func (p *Follower) OnAppendEntries(param proxy.AppendEntries) proxy.Response {
 	if param.Term < p.GetTerm() {
 		return proxy.Response{Term: p.GetTerm(), Success: false}
 	}
-	p.SetTerm(param.Term)
+	_ = p.SetTerm(param.Term)
 	p.leaderID = param.LeaderID
 
 	// not a heartbeat request
 	if len(param.Entries) > 0 {
 		// 2. reply false if log dose’t contain an entry at prevLogIndex whose term matches prevLogTerm
 		if param.PrevLogIndex >= 0 {
-			if param.PrevLogIndex > p.GetLastLogIndex() || p.GetLog(param.PrevLogIndex).Term != param.PrevLogTerm {
+			log, err := p.GetLog(param.PrevLogIndex)
+			if err != nil {
+				p.stateLogger.Error(err)
+				return proxy.Response{Term: p.GetTerm(), Success: false}
+			}
+			if param.PrevLogIndex > p.GetLastLogIndex() || log.Term != param.PrevLogTerm {
 				return proxy.Response{Term: p.GetTerm(), Success: false}
 			}
 		}
@@ -63,7 +68,7 @@ func (p *Follower) OnAppendEntries(param proxy.AppendEntries) proxy.Response {
 		if p.GetLastLogIndex() < newIndex {
 			newIndex = p.GetLastLogIndex()
 		}
-		p.SetCommitIndex(newIndex)
+		_ = p.SetCommitIndex(newIndex)
 	}
 
 	return proxy.Response{Term: p.GetTerm(), Success: true}
@@ -79,7 +84,7 @@ func (p *Follower) OnRequestVote(param proxy.RequestVote) proxy.Response {
 
 	// a new round of election
 	if param.Term > term {
-		p.SetTerm(param.Term)
+		_ = p.SetTerm(param.Term)
 		p.votedFor = ""
 	}
 	term = p.GetTerm()
@@ -91,7 +96,12 @@ func (p *Follower) OnRequestVote(param proxy.RequestVote) proxy.Response {
 
 	lastLogIndex := p.GetLastLogIndex()
 	if lastLogIndex >= 0 {
-		lastLogTerm := p.GetLog(lastLogIndex).Term
+		log, err := p.GetLog(lastLogIndex)
+		if err != nil {
+			p.stateLogger.Error(err)
+			return proxy.Response{Term: term, Success: false}
+		}
+		lastLogTerm := log.Term
 		if lastLogTerm > param.LastLogTerm {
 			return proxy.Response{Term: p.GetTerm(), Success: false}
 		}
@@ -120,5 +130,5 @@ func (p *Follower) GetVoteFor() string {
 
 // reset timer for follower, as time configured
 func (p *Follower) resetTimer() {
-	p.SetTimer(p.GetConfig().GetReplicateTimeout())
+	_ = p.SetTimer(p.GetConfig().GetReplicateTimeout())
 }

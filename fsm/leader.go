@@ -122,7 +122,12 @@ func (p *Leader) replicate(nodeID string) {
 	}
 	var preLogTerm int64 = 0
 	if preLogIndex >= 0 {
-		preLogTerm = p.GetLog(preLogIndex).Term
+		log, err := p.GetLog(preLogIndex)
+		if err != nil {
+			p.stateLogger.Error(err)
+			return
+		}
+		preLogTerm = log.Term
 	}
 
 	request := proxy.AppendEntries{
@@ -182,7 +187,7 @@ func (p *Leader) replicate(nodeID string) {
 func (p *Leader) rapidResetTimer() {
 	rapidTimer := int64(float64(p.GetConfig().GetReplicateTimeout()) * 0.8)
 	p.resetStopReplicate()
-	p.SetTimer(rapidTimer)
+	_ = p.SetTimer(rapidTimer)
 }
 
 func (p *Leader) resetStopReplicate() {
@@ -199,7 +204,12 @@ func (p *Leader) updateCommitIndex(nodeID string, replicationBound int64) {
 	term := p.GetTerm()
 	commitIndex := p.GetCommitIndex()
 	for N := p.GetLastLogIndex(); N > commitIndex; N-- {
-		if p.GetLog(N).Term < term {
+		log, err := p.GetLog(N)
+		if err != nil {
+			p.stateLogger.Error(err)
+			break
+		}
+		if log.Term < term {
 			break
 		}
 		count := 1 // add self in firstly
@@ -209,7 +219,7 @@ func (p *Leader) updateCommitIndex(nodeID string, replicationBound int64) {
 			}
 		}
 		if count > p.GetConfig().GetNodeCount()/2 {
-			p.SetCommitIndex(N)
+			_ = p.SetCommitIndex(N)
 		}
 	}
 }

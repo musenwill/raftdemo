@@ -13,7 +13,7 @@ type FileCommitter struct {
 }
 
 func NewFileCommitter(filePath string) (*FileCommitter, error) {
-	writer, err := os.Open(filePath)
+	writer, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
 	}
