@@ -35,7 +35,11 @@ func main() {
 	logger := common.NewLogger(common.DefaultZapConfig("raft.log"))
 	conf := config.NewDefaultConfig(nodes, 1000, 1000)
 	conf.Check()
-	committer, _ := committer2.NewFileCommitter("commit.txt")
+	committer, err := committer2.NewFileCommitter("commit.txt")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	var servers []fsm.Prober
 	for _, node := range nodes {
@@ -64,7 +68,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	fmt.Println("Shutting down restful Server ...")
-	err := srv.Shutdown(context.Background())
+	err = srv.Shutdown(context.Background())
 	fmt.Println("Shutting down fsm Server ...", err)
 	for _, srv := range servers {
 		srv.Stop()

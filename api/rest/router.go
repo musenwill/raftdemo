@@ -2,6 +2,7 @@ package rest
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/musenwill/raftdemo/api/mgr"
 	"github.com/musenwill/raftdemo/fsm"
 	"io"
 	"os"
@@ -21,8 +22,11 @@ func New(nodes []fsm.Prober) *Ctx {
 	gin.DefaultWriter = io.MultiWriter(f)
 	router := gin.Default()
 
-	nodeMgr := NodeMgr{nodes: nodeMap}
+	nodeMgr := mgr.NodeMgr{Nodes: nodeMap}
 	(&NodeController{NodeMgr: &nodeMgr}).Register(router)
+
+	logMgr := mgr.LogMgr{Nodes: nodeMap}
+	(&LogController{LogMgr: &logMgr}).Register(router)
 
 	return &Ctx{
 		Router: router,

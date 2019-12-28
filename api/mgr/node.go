@@ -1,4 +1,4 @@
-package rest
+package mgr
 
 import (
 	"errors"
@@ -9,14 +9,14 @@ import (
 )
 
 type NodeMgr struct {
-	nodes map[string]fsm.Prober
+	Nodes map[string]fsm.Prober
 }
 
 func (p *NodeMgr) List() (api.ListResponse, *error2.HttpError) {
 	result := api.ListResponse{}
-	result.Total = len(p.nodes)
+	result.Total = len(p.Nodes)
 
-	for _, n := range p.nodes {
+	for _, n := range p.Nodes {
 		result.Entries = append(result.Entries, api.Node{
 			Host:          n.GetHost(),
 			Term:          n.GetTerm(),
@@ -33,7 +33,7 @@ func (p *NodeMgr) List() (api.ListResponse, *error2.HttpError) {
 }
 
 func (p *NodeMgr) Get(host string) (api.Node, *error2.HttpError) {
-	node, ok := p.nodes[host]
+	node, ok := p.Nodes[host]
 	if !ok {
 		return api.Node{}, error2.DataNotFoundError(errors.New(fmt.Sprintf("node %s not found", host)))
 	}

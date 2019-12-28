@@ -188,11 +188,15 @@ func (p *Server) GetLogs() []model.Log {
 	return p.logs[:]
 }
 
-func (p *Server) GetLog(index int64) model.Log {
+func (p *Server) GetLog(index int64) (model.Log, error) {
 	p.logsLock.RLock()
 	defer p.logsLock.RUnlock()
 
-	return p.logs[index]
+	if index < 0 || index >= int64(len(p.logs)) {
+		return model.Log{}, errors.New("index out of bound")
+	}
+
+	return p.logs[index], nil
 }
 
 func (p *Server) AppendLog(entries proxy.AppendEntries) {
@@ -204,16 +208,26 @@ func (p *Server) AppendLog(entries proxy.AppendEntries) {
 	p.logs = append(p.logs, entries.Entries...)
 }
 
-func (p *Server) AddLogs(logs ...model.Log) error {
+func (p *Server) AddLogs(logs ...model.Log) ([]model.Log, error) {
 	if p.GetState() != StateEnum.Leader {
-		return errors.New("can not add logs to none leader host")
+		return nil, errors.New("can not add logs to none leader host")
+	}
+
+	term := p.GetTerm()
+	var items []model.Log
+	for _, l := range logs {
+		items = append(items, model.Log{
+			RequestID: l.RequestID,
+			Command:   l.Command,
+			Term:      term,
+		})
 	}
 
 	p.logsLock.Lock()
 	defer p.logsLock.Unlock()
 
-	p.logs = append(p.logs, logs...)
-	return nil
+	p.logs = append(p.logs, items...)
+	return items, nil
 }
 
 func (p *Server) GetConfig() config.Config {

@@ -56,9 +56,9 @@ type Prober interface {
 
 	GetLastLogIndex() int64
 	GetLogs() []model.Log
-	GetLog(index int64) model.Log
+	GetLog(index int64) (model.Log, error)
 	AppendLog(entries proxy.AppendEntries)
-	AddLogs(logs ...model.Log) error
+	AddLogs(logs ...model.Log) ([]model.Log, error)
 
 	GetLeader() string
 	GetVoteFor() string
