@@ -110,6 +110,14 @@ func (p *Follower) Timeout() {
 	p.TransferState(StateEnum.Candidate)
 }
 
+func (p *Follower) GetLeader() string {
+	return p.leaderID
+}
+
+func (p *Follower) GetVoteFor() string {
+	return p.votedFor
+}
+
 // reset timer for follower, as time configured
 func (p *Follower) resetTimer() {
 	p.SetTimer(p.GetConfig().GetReplicateTimeout())

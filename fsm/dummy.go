@@ -39,3 +39,11 @@ func (p *Dummy) OnRequestVote(param proxy.RequestVote) proxy.Response {
 
 func (p *Dummy) Timeout() {
 }
+
+func (p *Dummy) GetLeader() string {
+	return ""
+}
+
+func (p *Dummy) GetVoteFor() string {
+	return ""
+}

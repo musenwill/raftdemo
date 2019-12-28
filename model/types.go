@@ -5,7 +5,7 @@ type Node struct {
 }
 
 type Log struct {
-	RequestID string
-	Command   string
-	Term      int64
+	RequestID string `json:"request_id"`
+	Command   string `json:"command"`
+	Term      int64  `json:"term"`
 }

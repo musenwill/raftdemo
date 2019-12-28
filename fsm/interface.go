@@ -25,13 +25,16 @@ type State interface {
 	OnRequestVote(param proxy.RequestVote) proxy.Response
 	Timeout()
 	Loggable
+
+	GetLeader() string
+	GetVoteFor() string
 }
 
 type Prober interface {
 	Start()
 	Stop()
 
-	SetTimer(time int64) // milliseconds
+	SetTimer(time int64) error // milliseconds
 	ResetTimer()
 
 	GetHost() string
@@ -41,20 +44,24 @@ type Prober interface {
 	TransferState(state StateName)
 
 	GetTerm() int64
-	SetTerm(i int64)
+	SetTerm(i int64) error
 	IncreaseTerm()
 
 	GetCommitIndex() int64
-	SetCommitIndex(i int64)
+	SetCommitIndex(i int64) error
 
 	GetLastAppliedIndex() int64
-	SetLastAppliedIndex(i int64)
+	SetLastAppliedIndex(i int64) error
 	IncreaseLastAppliedIndex()
 
 	GetLastLogIndex() int64
 	GetLogs() []model.Log
 	GetLog(index int64) model.Log
 	AppendLog(entries proxy.AppendEntries)
+	AddLogs(logs ...model.Log) error
+
+	GetLeader() string
+	GetVoteFor() string
 
 	GetConfig() config.Config
 	GetProxy() proxy.Proxy
