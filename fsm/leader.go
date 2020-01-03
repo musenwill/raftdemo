@@ -2,9 +2,9 @@ package fsm
 
 import (
 	"fmt"
+	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/model"
 	"github.com/musenwill/raftdemo/proxy"
-	"go.uber.org/zap"
 	"sync"
 )
 
@@ -16,10 +16,10 @@ type Leader struct {
 	Prober
 	nIndex        map[string]*nodeIndex
 	stopReplicate chan bool
-	stateLogger   *zap.SugaredLogger
+	stateLogger   *common.Logger
 }
 
-func NewLeader(s Prober, logger *zap.SugaredLogger, nodes []model.Node) *Leader {
+func NewLeader(s Prober, logger *common.Logger, nodes []model.Node) *Leader {
 	lastLogIndex := s.GetLastLogIndex()
 	nIndex := make(map[string]*nodeIndex)
 	hostID := s.GetHost()
@@ -38,7 +38,7 @@ func (p *Leader) implStateInterface() {
 	var _ State = &Leader{}
 }
 
-func (p *Leader) GetLogger() *zap.SugaredLogger {
+func (p *Leader) GetLogger() *common.Logger {
 	return p.stateLogger
 }
 
@@ -116,7 +116,7 @@ func (p *Leader) replicate(nodeID string) {
 	lastLogIndex := p.GetLastLogIndex()
 	nextLogIndex := p.nIndex[nodeID].nextIndex
 	preLogIndex := nextLogIndex - 1
-	replicationBound := nextLogIndex + int64(p.GetConfig().GetReplicateUnitSize())
+	replicationBound := nextLogIndex + p.GetConfig().GetReplicateUnitSize()
 	if replicationBound > lastLogIndex+1 {
 		replicationBound = lastLogIndex + 1
 	}

@@ -5,18 +5,17 @@ import (
 	"fmt"
 	"github.com/musenwill/raftdemo/api"
 	error2 "github.com/musenwill/raftdemo/api/error"
-	"github.com/musenwill/raftdemo/fsm"
 )
 
 type NodeMgr struct {
-	Nodes map[string]fsm.Prober
+	Ctx *api.Context
 }
 
 func (p *NodeMgr) List() (api.ListResponse, *error2.HttpError) {
 	result := api.ListResponse{}
-	result.Total = len(p.Nodes)
+	result.Total = len(p.Ctx.NodeMap)
 
-	for _, n := range p.Nodes {
+	for _, n := range p.Ctx.NodeMap {
 		result.Entries = append(result.Entries, api.Node{
 			Host:          n.GetHost(),
 			Term:          n.GetTerm(),
@@ -33,7 +32,7 @@ func (p *NodeMgr) List() (api.ListResponse, *error2.HttpError) {
 }
 
 func (p *NodeMgr) Get(host string) (api.Node, *error2.HttpError) {
-	node, ok := p.Nodes[host]
+	node, ok := p.Ctx.NodeMap[host]
 	if !ok {
 		return api.Node{}, error2.DataNotFoundError(errors.New(fmt.Sprintf("node %s not found", host)))
 	}

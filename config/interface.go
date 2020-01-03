@@ -1,6 +1,8 @@
 package config
 
-import "github.com/musenwill/raftdemo/model"
+import (
+	"github.com/musenwill/raftdemo/model"
+)
 
 type Config interface {
 	GetNodes() []model.Node
@@ -9,11 +11,15 @@ type Config interface {
 
 	GetNodeCount() int
 
-	GetReplicateUnitSize() int
+	GetMaxLogSize() int64 // in bytes
 
-	SetReplicateUnitSize(int)
+	SetMaxLogSize(int64)
 
-	GetReplicateTimeout() int64
+	GetReplicateUnitSize() int64
+
+	SetReplicateUnitSize(int64)
+
+	GetReplicateTimeout() int64 // in milliseconds
 
 	SetReplicateTimeout(timeout int64)
 }

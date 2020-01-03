@@ -1,18 +1,18 @@
 package fsm
 
 import (
+	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/proxy"
-	"go.uber.org/zap"
 )
 
 type Follower struct {
 	Prober
 	votedFor    string
 	leaderID    string
-	stateLogger *zap.SugaredLogger
+	stateLogger *common.Logger
 }
 
-func NewFollower(s Prober, logger *zap.SugaredLogger) *Follower {
+func NewFollower(s Prober, logger *common.Logger) *Follower {
 	return &Follower{s, "", "", logger.With("state", StateEnum.Follower)}
 }
 
@@ -20,7 +20,7 @@ func (p *Follower) implStateInterface() {
 	var _ State = &Follower{}
 }
 
-func (p *Follower) GetLogger() *zap.SugaredLogger {
+func (p *Follower) GetLogger() *common.Logger {
 	return p.stateLogger
 }
 

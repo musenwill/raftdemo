@@ -2,18 +2,18 @@ package fsm
 
 import (
 	"fmt"
+	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/proxy"
-	"go.uber.org/zap"
 	"math/rand"
 )
 
 type Candidate struct {
 	Prober
 	stopElection chan bool
-	stateLogger  *zap.SugaredLogger
+	stateLogger  *common.Logger
 }
 
-func NewCandidate(s Prober, logger *zap.SugaredLogger) *Candidate {
+func NewCandidate(s Prober, logger *common.Logger) *Candidate {
 	return &Candidate{s, nil, logger.With("state", StateEnum.Candidate)}
 }
 
@@ -21,7 +21,7 @@ func (p *Candidate) implStateInterface() {
 	var _ State = &Candidate{}
 }
 
-func (p *Candidate) GetLogger() *zap.SugaredLogger {
+func (p *Candidate) GetLogger() *common.Logger {
 	return p.stateLogger
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/musenwill/raftdemo/committer"
+	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/model"
 	"sync"
 	"sync/atomic"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/proxy"
-	"go.uber.org/zap"
 )
 
 type Server struct {
@@ -28,7 +28,7 @@ type Server struct {
 	stopNotifier   chan bool // notify to stop the server
 
 	config    config.Config
-	logger    *zap.SugaredLogger
+	logger    *common.Logger
 	committer committer.Committer
 	proxy     proxy.Proxy
 
@@ -37,7 +37,7 @@ type Server struct {
 }
 
 func NewServer(id string, committer committer.Committer, proxy proxy.Proxy,
-	conf config.Config, logger *zap.SugaredLogger) *Server {
+	conf config.Config, logger *common.Logger) *Server {
 	return &Server{
 		id:          id,
 		currentTerm: 0,
@@ -374,7 +374,7 @@ func (p *Server) TransferState(state StateName) {
 	p.currentState.EnterState()
 }
 
-func (p *Server) GetLogger() *zap.SugaredLogger {
+func (p *Server) GetLogger() *common.Logger {
 	return p.logger
 }
 

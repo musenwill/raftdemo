@@ -155,14 +155,14 @@ func (p *LogController) Add(ctx *gin.Context) {
 		}
 	}()
 
-	var param api.AddLogForm
+	var param AddLogForm
 	err := ctx.ShouldBind(&param)
 	if err != nil {
 		httpErr = error2.ParamError(err)
 		return
 	}
 
-	result, httpErr := p.LogMgr.Add(param)
+	result, httpErr := p.LogMgr.Add(param.RequestID, param.Command)
 	if httpErr != nil {
 		return
 	}
@@ -175,4 +175,58 @@ func (p *LogController) Register(router *gin.Engine) {
 	g.GET("/logs", p.List)
 	g.POST("logs", p.Add)
 	g.GET("/logs/:index", p.Get)
+}
+
+type ConfigController struct {
+	ConfMgr *mgr.ConfMgr
+}
+
+func (p *ConfigController) Get(ctx *gin.Context) {
+	var httpErr *error2.HttpError = nil
+	defer func() {
+		if httpErr != nil {
+			ctx.JSON(httpErr.GetStatusCode(), httpErr)
+		}
+	}()
+
+	result, httpErr := p.ConfMgr.Get()
+	if httpErr != nil {
+		return
+	}
+
+	ctx.JSON(200, result)
+}
+
+func (p *ConfigController) Update(ctx *gin.Context) {
+	var httpErr *error2.HttpError = nil
+	defer func() {
+		if httpErr != nil {
+			ctx.JSON(httpErr.GetStatusCode(), httpErr)
+		}
+	}()
+
+	var param api.ConfigInfo
+	err := ctx.ShouldBind(&param)
+	if err != nil {
+		httpErr = error2.ParamError(err)
+		return
+	}
+
+	httpErr = p.ConfMgr.Set(param)
+	if httpErr != nil {
+		return
+	}
+
+	result, httpErr := p.ConfMgr.Get()
+	if httpErr != nil {
+		return
+	}
+
+	ctx.JSON(200, result)
+}
+
+func (p *ConfigController) Register(router *gin.Engine) {
+	g := router.Group("/v1")
+	g.GET("/config", p.Get)
+	g.PUT("/config", p.Update)
 }
