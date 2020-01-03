@@ -9,7 +9,7 @@ import (
 )
 
 type LogMgr struct {
-	Nodes map[string]fsm.Prober
+	Ctx *api.Context
 }
 
 func (p *LogMgr) List() (api.ListResponse, *error2.HttpError) {
@@ -41,15 +41,15 @@ func (p *LogMgr) Get(index int64) (model.Log, *error2.HttpError) {
 	return log, nil
 }
 
-func (p *LogMgr) Add(log api.AddLogForm) (model.Log, *error2.HttpError) {
+func (p *LogMgr) Add(requestID, command string) (model.Log, *error2.HttpError) {
 	leader, httpErr := p.getLeader()
 	if httpErr != nil {
 		return model.Log{}, httpErr
 	}
 
 	logs, err := leader.AddLogs(model.Log{
-		RequestID: log.RequestID,
-		Command:   log.Command,
+		RequestID: requestID,
+		Command:   []byte(command),
 	})
 	if err != nil {
 		return model.Log{}, error2.ServerError(err)
@@ -61,7 +61,7 @@ func (p *LogMgr) Add(log api.AddLogForm) (model.Log, *error2.HttpError) {
 func (p *LogMgr) getLeader() (fsm.Prober, *error2.HttpError) {
 	var leader fsm.Prober
 
-	for _, n := range p.Nodes {
+	for _, n := range p.Ctx.NodeMap {
 		if n.GetState() == fsm.StateEnum.Leader {
 			leader = n
 			break

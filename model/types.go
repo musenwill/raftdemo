@@ -6,6 +6,6 @@ type Node struct {
 
 type Log struct {
 	RequestID string `json:"request_id"`
-	Command   string `json:"command"`
+	Command   []byte `json:"command"`
 	Term      int64  `json:"term"`
 }

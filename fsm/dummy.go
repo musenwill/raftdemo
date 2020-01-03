@@ -1,12 +1,12 @@
 package fsm
 
 import (
+	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/proxy"
-	"go.uber.org/zap"
 )
 
 type Dummy struct {
-	stateLogger *zap.SugaredLogger
+	stateLogger *common.Logger
 }
 
 func NewDummyState(s Loggable) *Dummy {
@@ -17,7 +17,7 @@ func (p *Dummy) implStateInterface() {
 	var _ State = &Dummy{}
 }
 
-func (p *Dummy) GetLogger() *zap.SugaredLogger {
+func (p *Dummy) GetLogger() *common.Logger {
 	return p.stateLogger
 }
 
@@ -29,11 +29,11 @@ func (p *Dummy) LeaveState() {
 	p.stateLogger.Info("leave state")
 }
 
-func (p *Dummy) OnAppendEntries(param proxy.AppendEntries) proxy.Response {
+func (p *Dummy) OnAppendEntries(proxy.AppendEntries) proxy.Response {
 	return proxy.Response{}
 }
 
-func (p *Dummy) OnRequestVote(param proxy.RequestVote) proxy.Response {
+func (p *Dummy) OnRequestVote(proxy.RequestVote) proxy.Response {
 	return proxy.Response{}
 }
 

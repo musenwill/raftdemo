@@ -1,10 +1,10 @@
 package fsm
 
 import (
+	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/model"
 	"github.com/musenwill/raftdemo/proxy"
-	"go.uber.org/zap"
 )
 
 type StateName string
@@ -68,5 +68,5 @@ type Prober interface {
 }
 
 type Loggable interface {
-	GetLogger() *zap.SugaredLogger
+	GetLogger() *common.Logger
 }

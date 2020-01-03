@@ -1,6 +1,12 @@
 package api
 
-import "github.com/musenwill/raftdemo/model"
+import (
+	"github.com/musenwill/raftdemo/common"
+	"github.com/musenwill/raftdemo/config"
+	"github.com/musenwill/raftdemo/fsm"
+	"github.com/musenwill/raftdemo/model"
+	proxy2 "github.com/musenwill/raftdemo/proxy"
+)
 
 type Node struct {
 	Host          string `json:"host"`
@@ -20,7 +26,17 @@ type ListResponse struct {
 	Entries []interface{} `json:"entries"`
 }
 
-type AddLogForm struct {
-	RequestID string `json:"request_id"`
-	Command   string `json:"command"`
+type Context struct {
+	NodeMap map[string]fsm.Prober
+	Proxy   *proxy2.ChanProxy
+	Conf    config.Config
+	Logger  *common.Logger
+}
+
+type ConfigInfo struct {
+	LogLevel          string   `json:"log_level"`
+	Nodes             []string `json:"nodes"`
+	ReplicateTimeout  int64    `json:"replicate_timeout"`
+	ReplicateUnitSize int64    `json:"replicate_unit_size"`
+	MaxLogSize        int64    `json:"max_log_size"`
 }

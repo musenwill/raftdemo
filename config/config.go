@@ -1,31 +1,39 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"github.com/musenwill/raftdemo/model"
 	"sync"
 )
 
-func NewDefaultConfig(nodes []model.Node, replicateUnitSize int, replicateTimeout int64) *DefaultConfig {
-	return &DefaultConfig{
-		Nodes:                 nodes,
+func NewDefaultConfig(nodes []model.Node, replicateUnitSize int64, replicateTimeout int64, maxLogSize int64) *DefaultConfig {
+	conf := &DefaultConfig{
 		NodesLock:             &sync.RWMutex{},
-		ReplicateTimeout:      replicateTimeout,
 		ReplicateTimeoutLock:  &sync.RWMutex{},
-		ReplicateUnitSize:     replicateUnitSize,
 		ReplicateUnitSizeLock: &sync.RWMutex{},
+		MaxLogSizeLock:        &sync.RWMutex{},
 	}
+	conf.SetNodes(nodes)
+	conf.SetReplicateTimeout(replicateTimeout)
+	conf.SetReplicateUnitSize(replicateUnitSize)
+	conf.SetMaxLogSize(maxLogSize)
+
+	return conf
 }
 
 type DefaultConfig struct {
 	Nodes     []model.Node
 	NodesLock *sync.RWMutex
 
-	ReplicateTimeout     int64 // milliseconds
+	ReplicateTimeout     int64
 	ReplicateTimeoutLock *sync.RWMutex
 
-	ReplicateUnitSize     int
+	ReplicateUnitSize     int64
 	ReplicateUnitSizeLock *sync.RWMutex
+
+	MaxLogSize     int64
+	MaxLogSizeLock *sync.RWMutex
 }
 
 func (p *DefaultConfig) ensureImplConfig() {
@@ -53,14 +61,14 @@ func (p *DefaultConfig) GetNodeCount() int {
 	return len(p.Nodes)
 }
 
-func (p *DefaultConfig) GetReplicateUnitSize() int {
+func (p *DefaultConfig) GetReplicateUnitSize() int64 {
 	p.ReplicateUnitSizeLock.RLock()
 	defer p.ReplicateUnitSizeLock.RUnlock()
 
 	return p.ReplicateUnitSize
 }
 
-func (p *DefaultConfig) SetReplicateUnitSize(unitSize int) {
+func (p *DefaultConfig) SetReplicateUnitSize(unitSize int64) {
 	p.ReplicateUnitSizeLock.Lock()
 	defer p.ReplicateUnitSizeLock.Unlock()
 
@@ -81,25 +89,40 @@ func (p *DefaultConfig) SetReplicateTimeout(timeout int64) {
 	p.ReplicateTimeout = timeout
 }
 
-func (p *DefaultConfig) Check() {
+func (p *DefaultConfig) GetMaxLogSize() int64 {
+	p.MaxLogSizeLock.RLock()
+	defer p.MaxLogSizeLock.RUnlock()
+
+	return p.MaxLogSize
+}
+
+func (p *DefaultConfig) SetMaxLogSize(maxLogSize int64) {
+	p.MaxLogSizeLock.Lock()
+	defer p.MaxLogSizeLock.Unlock()
+
+	p.MaxLogSize = maxLogSize
+}
+
+func (p *DefaultConfig) Check() error {
 	if p.GetReplicateTimeout() <= 0 {
-		panic(fmt.Sprintf("invalid Timeout %v, expected greater than 0", p.GetReplicateTimeout()))
+		return errors.New(fmt.Sprintf("invalid Timeout %v, expected greater than 0", p.GetReplicateTimeout()))
 	}
 	if p.GetReplicateTimeout() < 20 {
 		fmt.Printf("Timeout too small %v, may cause a lot of election, expected greater than 20ms", p.GetReplicateTimeout())
 	}
 	if p.GetReplicateTimeout() > 1000 {
-		fmt.Printf("Timeout is %v, may cause performance quite slow, are you sure", p.GetReplicateTimeout())
+		fmt.Printf("Timeout is %v, may cause performance quite slow", p.GetReplicateTimeout())
 	}
 	if p.GetNodeCount() <= 0 {
-		panic("empty nodes")
+		return errors.New("empty nodes")
 	}
 	set := make(map[string]bool)
 	for _, id := range p.GetNodes() {
 		if set[id.ID] {
-			panic("duplicate nodes")
+			return errors.New("duplicate nodes")
 		} else {
 			set[id.ID] = true
 		}
 	}
+	return nil
 }
