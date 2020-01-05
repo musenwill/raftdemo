@@ -34,6 +34,8 @@ type Server struct {
 
 	logsLock  *sync.RWMutex
 	stateLock *sync.RWMutex
+
+	sleepTime int64
 }
 
 func NewServer(id string, committer committer.Committer, proxy proxy.Proxy,
@@ -106,6 +108,14 @@ func (p *Server) SetTimer(t int64) error {
 
 func (p *Server) ResetTimer() {
 	p.GetCurrentState().Timeout()
+}
+
+func (p *Server) Timeout() {
+	p.GetCurrentState().Timeout()
+}
+
+func (p *Server) Sleep(time int64) {
+	p.sleepTime = time
 }
 
 func (p *Server) GetHost() string {
@@ -247,6 +257,8 @@ func (p *Server) GetVoteFor() string {
 }
 
 func (p *Server) fsmTask() {
+	defer func() { p.GetCurrentState().GetLogger().Info("quit fsm task") }()
+
 	for {
 		appendEntriesRequestReader, err := p.proxy.AppendEntriesRequestReader(p.id)
 		if err != nil {
@@ -327,6 +339,11 @@ func (p *Server) fsmTask() {
 			case voteResponseSender <- response:
 				p.logger.Debugw("send vote response", "state", p.state, "body", response)
 			}
+		}
+
+		if p.sleepTime > 0 {
+			time.Sleep(time.Duration(int64(time.Millisecond) * p.sleepTime))
+			p.sleepTime = 0
 		}
 	}
 }
