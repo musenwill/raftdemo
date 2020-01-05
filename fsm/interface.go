@@ -36,6 +36,8 @@ type Prober interface {
 
 	SetTimer(time int64) error // milliseconds
 	ResetTimer()
+	Timeout()
+	Sleep(time int64)
 
 	GetHost() string
 

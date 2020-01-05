@@ -79,7 +79,29 @@ func (p *NodeController) Update(ctx *gin.Context) {
 		}
 	}()
 
-	httpErr = error2.UnimplementedError(errors.New("update node has not implemented yet"))
+	var tmp struct {
+		Host string `uri:"host" binding:"required" json:"host"`
+	}
+	err := ctx.BindUri(&tmp)
+	if err != nil {
+		httpErr = error2.ParamError(err)
+		return
+	}
+	host := tmp.Host
+
+	var param UpdateNodeForm
+	err = ctx.ShouldBind(&param)
+	if err != nil {
+		httpErr = error2.ParamError(err)
+		return
+	}
+
+	result, httpErr := p.NodeMgr.Update(host, param.Timeout, param.Sleep)
+	if httpErr != nil {
+		return
+	}
+
+	ctx.JSON(200, result)
 }
 
 func (p *NodeController) Delete(ctx *gin.Context) {
