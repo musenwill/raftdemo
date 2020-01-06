@@ -1,38 +1,16 @@
-# introduction
-A demo implement of raft distribution algorithm, demonstrate how election, append entries happens.
+## build frontend
 
-# build
-
-1. just build
+1. run node.js docker
 ```
-make
+docker run -it --name node -p 9526:9526 -v $PWD:/home node bash
 ```
 
-2. run unit tests
+2. read frontend/README.md and follow its steps
+
+
+## build backend
+
+1. run golang docker
 ```
-make test
+docker run -it --name golang -v $PWD:/home golang bash
 ```
-
-3. platform cross build
-```
-make build-all
-```
-
-# run
-
-1. command line example
-```
-
-```
-
-2. config example
-```
-
-```
-
-
-# contact
-
-1. github: github.com/musenwill
-
-2. email: musenwill@qq.com
