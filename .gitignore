@@ -2,3 +2,6 @@ raftdemo
 *.log
 *.idea
 .DS_Store
+**/dist
+**/build
+**/node_modules

@@ -5,6 +5,7 @@ import (
 	"github.com/musenwill/raftdemo/api"
 	"github.com/musenwill/raftdemo/api/mgr"
 	"io"
+	"net/http"
 	"os"
 )
 
@@ -17,6 +18,14 @@ func New(ctx *api.Context) *Ctx {
 	f, _ := os.Create("gin.log")
 	gin.DefaultWriter = io.MultiWriter(f)
 	router := gin.Default()
+
+	router.LoadHTMLGlob("./views/*")
+	router.Static("/static", "./static")
+	router.GET("/", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "index.html", gin.H{
+			"title": "Users",
+		})
+	})
 
 	nodeMgr := mgr.NodeMgr{Ctx: ctx}
 	(&NodeController{NodeMgr: &nodeMgr}).Register(router)
