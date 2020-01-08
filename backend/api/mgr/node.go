@@ -6,6 +6,7 @@ import (
 	"github.com/musenwill/raftdemo/api"
 	error2 "github.com/musenwill/raftdemo/api/error"
 	"github.com/musenwill/raftdemo/fsm"
+	"sort"
 )
 
 type NodeMgr struct {
@@ -15,9 +16,10 @@ type NodeMgr struct {
 func (p *NodeMgr) List() (api.ListResponse, *error2.HttpError) {
 	result := api.ListResponse{}
 	result.Total = len(p.Ctx.NodeMap)
+	var nodeList api.NodeList
 
 	for _, n := range p.Ctx.NodeMap {
-		result.Entries = append(result.Entries, api.Node{
+		nodeList = append(nodeList, api.Node{
 			Host:          n.GetHost(),
 			Term:          n.GetTerm(),
 			State:         string(n.GetState()),
@@ -27,6 +29,10 @@ func (p *NodeMgr) List() (api.ListResponse, *error2.HttpError) {
 			VoteFor:       n.GetVoteFor(),
 			Logs:          n.GetLogs(),
 		})
+	}
+	sort.Sort(nodeList)
+	for _, v := range nodeList {
+		result.Entries = append(result.Entries, v)
 	}
 
 	return result, nil

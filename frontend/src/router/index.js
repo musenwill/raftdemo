@@ -48,6 +48,17 @@ export const constantRoutes = [
       meta: { title: 'Raft Demo', icon: 'dashboard', noCache: true }
     }]
   },
+  {
+    path: '/nodes',
+    component: Layout,
+    redirect: '/nodes',
+    children: [{
+      path: 'nodes',
+      name: 'Nodes',
+      component: () => import('@/views/node/index'),
+      meta: { title: 'Node', icon: 'table', noCache: true }
+    }]
+  },
 
   // 404 page must be placed at the end !!!
   { path: '*', redirect: '/404', hidden: true }

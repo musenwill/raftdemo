@@ -57,6 +57,8 @@ func NewServer(id string, committer committer.Committer, proxy proxy.Proxy,
 
 		logsLock:  &sync.RWMutex{},
 		stateLock: &sync.RWMutex{},
+
+		sleepTime: 0,
 	}
 }
 

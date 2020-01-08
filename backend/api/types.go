@@ -6,6 +6,7 @@ import (
 	"github.com/musenwill/raftdemo/fsm"
 	"github.com/musenwill/raftdemo/model"
 	proxy2 "github.com/musenwill/raftdemo/proxy"
+	"strings"
 )
 
 type Node struct {
@@ -39,4 +40,18 @@ type ConfigInfo struct {
 	ReplicateTimeout  int64    `json:"replicate_timeout"`
 	ReplicateUnitSize int64    `json:"replicate_unit_size"`
 	MaxLogSize        int64    `json:"max_log_size"`
+}
+
+type NodeList []Node
+
+func (p NodeList) Len() int {
+	return len(p)
+}
+
+func (p NodeList) Less(i, j int) bool {
+	return strings.Compare(p[i].Host, p[j].Host) < 0
+}
+
+func (p NodeList) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
 }

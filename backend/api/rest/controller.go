@@ -95,6 +95,10 @@ func (p *NodeController) Update(ctx *gin.Context) {
 		httpErr = error2.ParamError(err)
 		return
 	}
+	if err := param.Valid(); err != nil {
+		httpErr = error2.ParamError(err)
+		return
+	}
 
 	result, httpErr := p.NodeMgr.Update(host, param.Timeout, param.Sleep)
 	if httpErr != nil {

@@ -14,3 +14,9 @@ docker run -it --name node -p 9526:9526 -v $PWD:/home node bash
 ```
 docker run -it --name golang -v $PWD:/home golang bash
 ```
+
+## build distribution
+
+```
+make
+```

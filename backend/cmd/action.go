@@ -28,7 +28,7 @@ func start(c *cli.Context) error {
 
 	var nodes []model.Node
 	for i := 1; i <= nodeNumber; i++ {
-		nodes = append(nodes, model.Node{ID: fmt.Sprintf("node-%d", i)})
+		nodes = append(nodes, model.Node{ID: fmt.Sprintf("node-%02d", i)})
 	}
 
 	logger, err := initLogger(common.LogLevel(logLevel), logFile)
