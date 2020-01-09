@@ -38,6 +38,7 @@ import { GetNodes, UpdateNode } from '@/api/node'
 
 export default {
   name: 'Node',
+  timer: '',
   filters: {
     stateFilter(state) {
       const stateMap = {
@@ -58,6 +59,10 @@ export default {
   },
   created() {
     this.fetchData()
+    this.timer = setInterval(this.fetchData, 500)
+  },
+  beforeDestroy () {
+    clearInterval(this.timer)
   },
   methods: {
     fetchData() {
@@ -85,6 +90,9 @@ export default {
         })
         fetchData()
       })
+    },
+    cancelAutoUpdate () {
+      clearInterval(this.timer)
     }
   }
 }
