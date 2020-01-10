@@ -100,12 +100,16 @@ func (p *NodeController) Update(ctx *gin.Context) {
 		return
 	}
 
-	result, httpErr := p.NodeMgr.Update(host, param.Timeout, param.Sleep)
-	if httpErr != nil {
+	if len(param.NodeState) > 0 {
+		result, httpErr := p.NodeMgr.Update(host, param.NodeState)
+		if httpErr != nil {
+			return
+		}
+		ctx.JSON(200, result)
 		return
 	}
 
-	ctx.JSON(200, result)
+	ctx.JSON(200, nil)
 }
 
 func (p *NodeController) Delete(ctx *gin.Context) {

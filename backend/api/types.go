@@ -9,12 +9,20 @@ import (
 	"strings"
 )
 
+var NodeStateEnum = struct {
+	Start, Stop string
+}{
+	Start: "start",
+	Stop:  "stop",
+}
+
 type Node struct {
 	Host          string `json:"host"`
 	Term          int64  `json:"term"`
 	State         string `json:"state"`
 	CommitIndex   int64  `json:"commit_index"`
 	LastAppliedID int64  `json:"last_applied_id"`
+	NodeState     string `json:"node_state"`
 
 	Leader  string `json:"leader"`
 	VoteFor string `json:"vote_for"`

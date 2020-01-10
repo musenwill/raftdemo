@@ -19,16 +19,7 @@ func (p *NodeMgr) List() (api.ListResponse, *error2.HttpError) {
 	var nodeList api.NodeList
 
 	for _, n := range p.Ctx.NodeMap {
-		nodeList = append(nodeList, api.Node{
-			Host:          n.GetHost(),
-			Term:          n.GetTerm(),
-			State:         string(n.GetState()),
-			CommitIndex:   n.GetCommitIndex(),
-			LastAppliedID: n.GetLastAppliedIndex(),
-			Leader:        n.GetLeader(),
-			VoteFor:       n.GetVoteFor(),
-			Logs:          n.GetLogs(),
-		})
+		nodeList = append(nodeList, p.wrapApiNode(n))
 	}
 	sort.Sort(nodeList)
 	for _, v := range nodeList {
@@ -44,31 +35,42 @@ func (p *NodeMgr) Get(host string) (api.Node, *error2.HttpError) {
 		return api.Node{}, httpErr
 	}
 
+	return p.wrapApiNode(node), nil
+}
+
+func (p *NodeMgr) wrapApiNode(node fsm.Prober) api.Node {
+	var nodeState string
+	if node.GetState() == fsm.StateEnum.Dummy {
+		nodeState = api.NodeStateEnum.Stop
+	} else {
+		nodeState = api.NodeStateEnum.Start
+	}
+
 	return api.Node{
 		Host:          node.GetHost(),
 		Term:          node.GetTerm(),
 		State:         string(node.GetState()),
 		CommitIndex:   node.GetCommitIndex(),
 		LastAppliedID: node.GetLastAppliedIndex(),
-		Leader:        "",
-		VoteFor:       "",
+		Leader:        node.GetLeader(),
+		VoteFor:       node.GetVoteFor(),
 		Logs:          node.GetLogs(),
-	}, nil
+		NodeState:     nodeState,
+	}
 }
 
-func (p *NodeMgr) Update(host string, timeout bool, sleep bool) (api.Node, *error2.HttpError) {
+func (p *NodeMgr) Update(host string, nodeState string) (api.Node, *error2.HttpError) {
 	node, httpErr := p.getNode(host)
 	if httpErr != nil {
 		return api.Node{}, httpErr
 	}
 
-	if timeout {
-		node.ResetTimer()
-	}
-
-	if sleep {
-		// at least sleep 2 rounds can leader loose its power
-		node.Sleep(2 * p.Ctx.Conf.GetReplicateTimeout())
+	if nodeState == api.NodeStateEnum.Stop {
+		node.TransferState(fsm.StateEnum.Dummy)
+	} else if nodeState == api.NodeStateEnum.Start {
+		if node.GetState() == fsm.StateEnum.Dummy {
+			node.TransferState(fsm.StateEnum.Follower)
+		}
 	}
 
 	return api.Node{

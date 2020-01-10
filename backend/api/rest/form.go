@@ -1,6 +1,9 @@
 package rest
 
-import "errors"
+import (
+	"errors"
+	"github.com/musenwill/raftdemo/api"
+)
 
 type AddNodeForm struct {
 	Host string `json:"host"`
@@ -12,20 +15,31 @@ type AddLogForm struct {
 }
 
 type UpdateNodeForm struct {
-	Timeout bool `json:"timeout"`
-	Sleep   bool `json:"sleep"`
+	NodeState string `json:"node_state"`
 }
 
 func (p *UpdateNodeForm) Valid() error {
 	var filedCount int
-	if p.Timeout {
-		filedCount++
-	}
-	if p.Sleep {
+	if len(p.NodeState) > 0 {
 		filedCount++
 	}
 	if filedCount > 1 {
 		return errors.New("can not specify one field once")
 	}
+
+	if err := p.ValidNodeState(); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (p *UpdateNodeForm) ValidNodeState() error {
+	var values = []string{"", api.NodeStateEnum.Start, api.NodeStateEnum.Stop}
+	for _, v := range values {
+		if p.NodeState == v {
+			return nil
+		}
+	}
+	return errors.New("state param invalid, should be one of [start, stop]")
 }

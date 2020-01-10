@@ -23,8 +23,11 @@
         </el-table-column>
         <el-table-column label="Actions" align="center" width="200" class-name="small-padding fixed-width">
           <template slot-scope="{row}">
-            <el-button type="primary" size="mini" @click="sleepHandler(row)">
-              sleep
+            <el-button v-if="row.node_state!='start'" size="mini" type="success" @click="handleModifyNodeState(row, 'start')">
+              Start
+            </el-button>
+            <el-button v-if="row.node_state!='stop'" size="mini" type="danger" @click="handleModifyNodeState(row, 'stop')">
+              Stop
             </el-button>
           </template>
         </el-table-column>
@@ -44,7 +47,8 @@ export default {
       const stateMap = {
         Leader: 'success',
         Candidate: 'warning',
-        Follower: 'primary'
+        Follower: 'primary',
+        Dummy: 'danger'
       }
       return stateMap[state]
     }
@@ -77,9 +81,9 @@ export default {
         return 'background-color: gray; color: #fff; font-weight: 500;'
       }
     },
-    sleepHandler(row) {
+    handleModifyNodeState(row, node_state) {
       const param = {
-        sleep: true
+        node_state: node_state
       }
       UpdateNode(row.host, param).then(() => {
         this.$notify({
@@ -88,7 +92,6 @@ export default {
           type: 'success',
           duration: 2000
         })
-        fetchData()
       })
     },
     cancelAutoUpdate () {

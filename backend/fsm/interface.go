@@ -10,9 +10,10 @@ import (
 type StateName string
 
 var StateEnum = struct {
-	None, Follower, Candidate, Leader StateName
+	None, Dummy, Follower, Candidate, Leader StateName
 }{
 	None:      "None",
+	Dummy:     "Dummy",
 	Follower:  "Follower",
 	Candidate: "Candidate",
 	Leader:    "Leader",
@@ -37,7 +38,6 @@ type Prober interface {
 	SetTimer(time int64) error // milliseconds
 	ResetTimer()
 	Timeout()
-	Sleep(time int64)
 
 	GetHost() string
 
