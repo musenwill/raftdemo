@@ -3,8 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/musenwill/raftdemo/api"
 	"github.com/musenwill/raftdemo/api/rest"
+	"github.com/musenwill/raftdemo/api/types"
 	"github.com/musenwill/raftdemo/committer"
 	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/config"
@@ -53,7 +53,7 @@ func start(c *cli.Context) error {
 		nodeMap[v.GetHost()] = v
 	}
 
-	ctx := &api.Context{
+	ctx := &types.Context{
 		NodeMap: nodeMap,
 		Proxy:   chanProxy,
 		Conf:    conf,
@@ -99,7 +99,7 @@ func startRaft(chanProxy *proxy.ChanProxy, conf config.Config, logger *common.Lo
 	return servers, nil
 }
 
-func startRest(host string, port int, ctx *api.Context) (*http.Server, error) {
+func startRest(host string, port int, ctx *types.Context) (*http.Server, error) {
 	restSrv := rest.New(ctx)
 	srv := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", host, port),

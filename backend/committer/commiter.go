@@ -25,6 +25,6 @@ func (p *FileCommitter) implCommitterInterface() {
 }
 
 func (p *FileCommitter) Commit(log model.Log) error {
-	_, err := p.writer.Write(log.Command)
+	_, err := p.writer.Write(log.Command.GetContent())
 	return err
 }

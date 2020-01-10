@@ -1,25 +1,27 @@
 package mgr
 
 import (
-	"errors"
-	"github.com/musenwill/raftdemo/api"
 	error2 "github.com/musenwill/raftdemo/api/error"
-	"github.com/musenwill/raftdemo/fsm"
+	"github.com/musenwill/raftdemo/api/types"
 	"github.com/musenwill/raftdemo/model"
+	"sort"
 )
 
 type LogMgr struct {
-	Ctx *api.Context
+	Ctx *types.Context
 }
 
-func (p *LogMgr) List() (api.ListResponse, *error2.HttpError) {
-	leader, httpErr := p.getLeader()
+func (p *LogMgr) List() (types.ListResponse, *error2.HttpError) {
+
+	leader, httpErr := p.Ctx.NodeMgr.(*NodeMgr).GetLeader()
 	if httpErr != nil {
-		return api.ListResponse{}, httpErr
+		return types.ListResponse{}, httpErr
 	}
 
 	logs := leader.GetLogs()
-	var result api.ListResponse
+	sort.Sort(model.LogList(logs))
+
+	var result types.ListResponse
 	for _, l := range logs {
 		result.Entries = append(result.Entries, l)
 	}
@@ -28,7 +30,7 @@ func (p *LogMgr) List() (api.ListResponse, *error2.HttpError) {
 }
 
 func (p *LogMgr) Get(index int64) (model.Log, *error2.HttpError) {
-	leader, httpErr := p.getLeader()
+	leader, httpErr := p.Ctx.NodeMgr.(*NodeMgr).GetLeader()
 	if httpErr != nil {
 		return model.Log{}, httpErr
 	}
@@ -42,35 +44,18 @@ func (p *LogMgr) Get(index int64) (model.Log, *error2.HttpError) {
 }
 
 func (p *LogMgr) Add(requestID, command string) (model.Log, *error2.HttpError) {
-	leader, httpErr := p.getLeader()
+	leader, httpErr := p.Ctx.NodeMgr.(*NodeMgr).GetLeader()
 	if httpErr != nil {
 		return model.Log{}, httpErr
 	}
 
 	logs, err := leader.AddLogs(model.Log{
 		RequestID: requestID,
-		Command:   []byte(command),
+		Command:   model.StrCommand(command),
 	})
 	if err != nil {
 		return model.Log{}, error2.ServerError(err)
 	}
 
 	return logs[0], nil
-}
-
-func (p *LogMgr) getLeader() (fsm.Prober, *error2.HttpError) {
-	var leader fsm.Prober
-
-	for _, n := range p.Ctx.NodeMap {
-		if n.GetState() == fsm.StateEnum.Leader {
-			leader = n
-			break
-		}
-	}
-
-	if leader == nil {
-		return nil, error2.ServerError(errors.New("leader undetermined"))
-	}
-
-	return leader, nil
 }

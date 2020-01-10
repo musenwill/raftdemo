@@ -1,4 +1,4 @@
-package api
+package types
 
 import (
 	"github.com/musenwill/raftdemo/common"
@@ -40,6 +40,9 @@ type Context struct {
 	Proxy   *proxy2.ChanProxy
 	Conf    config.Config
 	Logger  *common.Logger
+	NodeMgr interface{}
+	LogMgr  interface{}
+	ConfMgr interface{}
 }
 
 type ConfigInfo struct {

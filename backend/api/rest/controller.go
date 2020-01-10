@@ -3,9 +3,9 @@ package rest
 import (
 	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/musenwill/raftdemo/api"
 	error2 "github.com/musenwill/raftdemo/api/error"
 	"github.com/musenwill/raftdemo/api/mgr"
+	"github.com/musenwill/raftdemo/api/types"
 )
 
 type NodeController struct {
@@ -235,7 +235,7 @@ func (p *ConfigController) Update(ctx *gin.Context) {
 		}
 	}()
 
-	var param api.ConfigInfo
+	var param types.ConfigInfo
 	err := ctx.ShouldBind(&param)
 	if err != nil {
 		httpErr = error2.ParamError(err)

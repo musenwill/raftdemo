@@ -2,24 +2,24 @@
   <div class="entries-text-test">
     <div class="entries-table">
       <el-table :data="nodes.entries" border fit highlight-current-row>
-        <el-table-column align="center" prop="host" label="host" min-width="15%">
+        <el-table-column align="center" prop="host" label="Host" min-width="15%">
         </el-table-column>
-        <el-table-column align="center" prop="term" label="term" min-width="15%">
+        <el-table-column align="center" prop="term" label="Term" min-width="15%">
         </el-table-column>
-        <el-table-column align="center" prop="state" label="state" min-width="15%">
+        <el-table-column align="center" prop="state" label="State" min-width="15%">
           <template slot-scope="{row}">
             <el-tag :type="row.state | stateFilter" min-width="10%">
               {{ row.state }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column align="center" prop="leader" label="leader" min-width="15%">
+        <el-table-column align="center" prop="leader" label="Leader" min-width="15%">
         </el-table-column>
-        <el-table-column align="center" prop="commit_index" label="commit index" min-width="15%">
+        <el-table-column align="center" prop="commit_index" label="Commit Index" min-width="15%">
         </el-table-column>
-        <el-table-column align="center" prop="last_applied_id" label="last applied id" min-width="15%">
+        <el-table-column align="center" prop="last_applied_id" label="Last Applied ID" min-width="15%">
         </el-table-column>
-        <el-table-column align="center" prop="vote_for" label="vote for" min-width="15%">
+        <el-table-column align="center" prop="vote_for" label="Vote For" min-width="15%">
         </el-table-column>
         <el-table-column label="Actions" align="center" width="200" class-name="small-padding fixed-width">
           <template slot-scope="{row}">

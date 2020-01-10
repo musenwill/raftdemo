@@ -3,20 +3,20 @@ package mgr
 import (
 	"errors"
 	"fmt"
-	"github.com/musenwill/raftdemo/api"
 	error2 "github.com/musenwill/raftdemo/api/error"
+	"github.com/musenwill/raftdemo/api/types"
 	"github.com/musenwill/raftdemo/fsm"
 	"sort"
 )
 
 type NodeMgr struct {
-	Ctx *api.Context
+	Ctx *types.Context
 }
 
-func (p *NodeMgr) List() (api.ListResponse, *error2.HttpError) {
-	result := api.ListResponse{}
+func (p *NodeMgr) List() (types.ListResponse, *error2.HttpError) {
+	result := types.ListResponse{}
 	result.Total = len(p.Ctx.NodeMap)
-	var nodeList api.NodeList
+	var nodeList types.NodeList
 
 	for _, n := range p.Ctx.NodeMap {
 		nodeList = append(nodeList, p.wrapApiNode(n))
@@ -29,24 +29,24 @@ func (p *NodeMgr) List() (api.ListResponse, *error2.HttpError) {
 	return result, nil
 }
 
-func (p *NodeMgr) Get(host string) (api.Node, *error2.HttpError) {
-	node, httpErr := p.getNode(host)
+func (p *NodeMgr) Get(host string) (types.Node, *error2.HttpError) {
+	node, httpErr := p.GetNode(host)
 	if httpErr != nil {
-		return api.Node{}, httpErr
+		return types.Node{}, httpErr
 	}
 
 	return p.wrapApiNode(node), nil
 }
 
-func (p *NodeMgr) wrapApiNode(node fsm.Prober) api.Node {
+func (p *NodeMgr) wrapApiNode(node fsm.Prober) types.Node {
 	var nodeState string
 	if node.GetState() == fsm.StateEnum.Dummy {
-		nodeState = api.NodeStateEnum.Stop
+		nodeState = types.NodeStateEnum.Stop
 	} else {
-		nodeState = api.NodeStateEnum.Start
+		nodeState = types.NodeStateEnum.Start
 	}
 
-	return api.Node{
+	return types.Node{
 		Host:          node.GetHost(),
 		Term:          node.GetTerm(),
 		State:         string(node.GetState()),
@@ -59,21 +59,21 @@ func (p *NodeMgr) wrapApiNode(node fsm.Prober) api.Node {
 	}
 }
 
-func (p *NodeMgr) Update(host string, nodeState string) (api.Node, *error2.HttpError) {
-	node, httpErr := p.getNode(host)
+func (p *NodeMgr) Update(host string, nodeState string) (types.Node, *error2.HttpError) {
+	node, httpErr := p.GetNode(host)
 	if httpErr != nil {
-		return api.Node{}, httpErr
+		return types.Node{}, httpErr
 	}
 
-	if nodeState == api.NodeStateEnum.Stop {
+	if nodeState == types.NodeStateEnum.Stop {
 		node.TransferState(fsm.StateEnum.Dummy)
-	} else if nodeState == api.NodeStateEnum.Start {
+	} else if nodeState == types.NodeStateEnum.Start {
 		if node.GetState() == fsm.StateEnum.Dummy {
 			node.TransferState(fsm.StateEnum.Follower)
 		}
 	}
 
-	return api.Node{
+	return types.Node{
 		Host:          node.GetHost(),
 		Term:          node.GetTerm(),
 		State:         string(node.GetState()),
@@ -85,10 +85,27 @@ func (p *NodeMgr) Update(host string, nodeState string) (api.Node, *error2.HttpE
 	}, nil
 }
 
-func (p *NodeMgr) getNode(host string) (fsm.Prober, *error2.HttpError) {
+func (p *NodeMgr) GetNode(host string) (fsm.Prober, *error2.HttpError) {
 	node, ok := p.Ctx.NodeMap[host]
 	if !ok {
 		return nil, error2.DataNotFoundError(errors.New(fmt.Sprintf("node %s not found", host)))
 	}
 	return node, nil
+}
+
+func (p *NodeMgr) GetLeader() (fsm.Prober, *error2.HttpError) {
+	var leader fsm.Prober
+
+	for _, n := range p.Ctx.NodeMap {
+		if n.GetState() == fsm.StateEnum.Leader {
+			leader = n
+			break
+		}
+	}
+
+	if leader == nil {
+		return nil, error2.ServerError(errors.New("leader undetermined"))
+	}
+
+	return leader, nil
 }

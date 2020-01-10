@@ -2,7 +2,7 @@ package rest
 
 import (
 	"errors"
-	"github.com/musenwill/raftdemo/api"
+	"github.com/musenwill/raftdemo/api/types"
 )
 
 type AddNodeForm struct {
@@ -35,7 +35,7 @@ func (p *UpdateNodeForm) Valid() error {
 }
 
 func (p *UpdateNodeForm) ValidNodeState() error {
-	var values = []string{"", api.NodeStateEnum.Start, api.NodeStateEnum.Stop}
+	var values = []string{"", types.NodeStateEnum.Start, types.NodeStateEnum.Stop}
 	for _, v := range values {
 		if p.NodeState == v {
 			return nil

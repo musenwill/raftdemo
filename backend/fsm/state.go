@@ -221,9 +221,10 @@ func (p *Server) AddLogs(logs ...model.Log) ([]model.Log, error) {
 	var items []model.Log
 	for _, l := range logs {
 		items = append(items, model.Log{
-			RequestID: l.RequestID,
-			Command:   l.Command,
-			Term:      term,
+			RequestID:  l.RequestID,
+			Command:    l.Command,
+			Term:       term,
+			AppendTime: model.LocalTime(time.Now()),
 		})
 	}
 
@@ -346,6 +347,7 @@ func (p *Server) commitTask() {
 				p.logger.Errorw("commit log error", "state", p.state, "logIndex", i, "log", p.logs[i], "err", err)
 				break
 			}
+			p.logs[i].ApplyTime = model.LocalTime(time.Now())
 			p.lastApplied++
 			p.logger.Infow("succeed commit log", "state", p.state, "logIndex", i, "term", p.currentTerm,
 				"commitIndex", p.commitIndex, "lastApplied", p.lastApplied)

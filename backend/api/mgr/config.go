@@ -1,23 +1,23 @@
 package mgr
 
 import (
-	"github.com/musenwill/raftdemo/api"
 	"github.com/musenwill/raftdemo/api/error"
+	"github.com/musenwill/raftdemo/api/types"
 	"github.com/musenwill/raftdemo/common"
 )
 
 type ConfMgr struct {
-	Ctx *api.Context
+	Ctx *types.Context
 }
 
-func (p *ConfMgr) Get() (api.ConfigInfo, *error.HttpError) {
+func (p *ConfMgr) Get() (types.ConfigInfo, *error.HttpError) {
 	nodes := p.Ctx.Conf.GetNodes()
 	var nLst []string
 	for _, v := range nodes {
 		nLst = append(nLst, v.ID)
 	}
 
-	return api.ConfigInfo{
+	return types.ConfigInfo{
 		LogLevel:          string(p.Ctx.Logger.GetLevel()),
 		Nodes:             nLst,
 		ReplicateTimeout:  p.Ctx.Conf.GetReplicateTimeout(),
@@ -26,7 +26,7 @@ func (p *ConfMgr) Get() (api.ConfigInfo, *error.HttpError) {
 	}, nil
 }
 
-func (p *ConfMgr) Set(cInfo api.ConfigInfo) *error.HttpError {
+func (p *ConfMgr) Set(cInfo types.ConfigInfo) *error.HttpError {
 	if len(cInfo.LogLevel) > 0 {
 		err := p.Ctx.Logger.SetLevel(common.LogLevel(cInfo.LogLevel))
 		if err != nil {

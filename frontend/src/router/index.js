@@ -60,6 +60,17 @@ export const constantRoutes = [
     }],
   },
   {
+    path: '/logs',
+    component: Layout,
+    redirect: '/logs',
+    children: [{
+      path: 'logs',
+      name: 'Logs',
+      component: () => import('@/views/log/index'),
+      meta: { title: 'Log', icon: 'list', noCache: true }
+    }],
+  },
+  {
     path: '/config',
     component: Layout,
     redirect: '/config',
