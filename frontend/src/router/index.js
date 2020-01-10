@@ -57,7 +57,18 @@ export const constantRoutes = [
       name: 'Nodes',
       component: () => import('@/views/node/index'),
       meta: { title: 'Node', icon: 'table', noCache: true }
-    }]
+    }],
+  },
+  {
+    path: '/config',
+    component: Layout,
+    redirect: '/config',
+    children: [{
+      path: 'config',
+      name: 'Config',
+      component: () => import('@/views/config/index'),
+      meta: { title: 'Config', icon: 'star', noCache: true }
+    }],
   },
 
   // 404 page must be placed at the end !!!

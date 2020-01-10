@@ -1,7 +1,7 @@
 <template>
   <div class="entries-text-test">
     <div class="entries-table">
-      <el-table :data="nodes.entries" border fit highlight-current-row :header-cell-style="tableHeaderColor">
+      <el-table :data="nodes.entries" border fit highlight-current-row>
         <el-table-column align="center" prop="host" label="host" min-width="15%">
         </el-table-column>
         <el-table-column align="center" prop="term" label="term" min-width="15%">
@@ -75,11 +75,6 @@ export default {
           this.nodes = response
         }
       })
-    },
-    tableHeaderColor({ row, column, rowIndex, columnIndex }) {
-      if (rowIndex === 0) {
-        return 'background-color: gray; color: #fff; font-weight: 500;'
-      }
     },
     handleModifyNodeState(row, node_state) {
       const param = {
