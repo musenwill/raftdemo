@@ -1,21 +1,21 @@
 <template>
   <div class="app-container">
 
-    <div>
+    <div class="post-container">
       <el-form>
         <el-row>
           <el-col :span="8">
-            <el-form-item label-width="100px" label="Request ID:" class="postInfo-container-item">
-              <el-input v-model="log.request_id" placeholder="request id" width="200px" />
+            <el-form-item label-width="100px" label="Request ID:">
+              <el-input v-model="log.request_id" placeholder="request id" style="width: 400px" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label-width="100px" label="Command:" class="postInfo-container-item">
-              <el-input v-model="log.command" placeholder="command" width="200px" />
+            <el-form-item label-width="100px" label="Command:">
+              <el-input v-model="log.command" placeholder="command" style="width: 400px" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-button type="primary" @click="handleAddLog()" padding="20px">
+            <el-button type="primary" @click="handleAddLog()">
               Add
             </el-button>
           </el-col>
@@ -88,6 +88,10 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+.post-container {
+  position: relative;
+  margin: 0px 15% 0px 15%;
+}
 .entries {
   &-text {
     margin: 0px 20% 0px 20%;
