@@ -44,14 +44,20 @@ func (p *DefaultConfig) GetNodes() []model.Node {
 	p.NodesLock.RLock()
 	defer p.NodesLock.RUnlock()
 
-	return p.Nodes[:]
+	cpy := make([]model.Node, len(p.Nodes))
+	copy(cpy, p.Nodes)
+
+	return cpy
 }
 
 func (p *DefaultConfig) SetNodes(nodes []model.Node) {
 	p.NodesLock.Lock()
 	defer p.NodesLock.Unlock()
 
-	p.Nodes = nodes[:]
+	cpy := make([]model.Node, len(nodes))
+	copy(cpy, nodes)
+
+	p.Nodes = cpy
 }
 
 func (p *DefaultConfig) GetNodeCount() int {

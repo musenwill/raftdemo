@@ -175,7 +175,7 @@ func (p *Server) SetLastAppliedIndex(i int64) error {
 }
 
 func (p *Server) IncreaseLastAppliedIndex() {
-	atomic.StoreInt64(&p.lastApplied, 1)
+	atomic.AddInt64(&p.lastApplied, 1)
 }
 
 func (p *Server) GetLastLogIndex() int64 {
@@ -189,7 +189,9 @@ func (p *Server) GetLogs() []model.Log {
 	p.logsLock.RLock()
 	defer p.logsLock.RUnlock()
 
-	return p.logs[:]
+	cpy := make([]model.Log, len(p.logs))
+	copy(cpy, p.logs)
+	return cpy
 }
 
 func (p *Server) GetLog(index int64) (model.Log, error) {
@@ -204,6 +206,9 @@ func (p *Server) GetLog(index int64) (model.Log, error) {
 }
 
 func (p *Server) AppendLog(entries proxy.AppendEntries) {
+	p.logsLock.Lock()
+	defer p.logsLock.Unlock()
+
 	// if an existing entry conflicts with a new one (same index but different terms),
 	// delete the existing entry and all that follow it
 	p.logs = p.logs[:entries.PrevLogIndex+1]
@@ -341,14 +346,17 @@ func (p *Server) fsmTask() {
 func (p *Server) commitTask() {
 	for {
 		<-p.commitNotifier
-		for i := p.lastApplied + 1; i <= p.GetCommitIndex(); i++ {
+		for i := p.GetLastAppliedIndex() + 1; i <= p.GetCommitIndex(); i++ {
+			p.logsLock.Lock()
 			err := p.committer.Commit(p.logs[i])
 			if err != nil {
 				p.logger.Errorw("commit log error", "state", p.state, "logIndex", i, "log", p.logs[i], "err", err)
 				break
 			}
 			p.logs[i].ApplyTime = model.LocalTime(time.Now())
-			p.lastApplied++
+			p.logsLock.Unlock()
+			p.IncreaseLastAppliedIndex()
+			p.logger.Infow("", "i", i, "log", p.logs)
 			p.logger.Infow("succeed commit log", "state", p.state, "logIndex", i, "term", p.currentTerm,
 				"commitIndex", p.commitIndex, "lastApplied", p.lastApplied)
 		}
