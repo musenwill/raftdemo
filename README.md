@@ -15,8 +15,16 @@ docker run -it --name node -p 9526:9526 -v $PWD:/home node bash
 docker run -it --name golang -v $PWD:/home golang bash
 ```
 
-## build distribution
+## distribution
 
 ```
 make
+cd dist
+./raftdemo -h
+```
+
+## pprof
+
+```
+pprof -http=:8081 http://localhost:6060/debug/pprof/profile?seconds=60
 ```
