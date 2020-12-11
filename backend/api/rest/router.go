@@ -1,12 +1,13 @@
 package rest
 
 import (
+	"io"
+	"os"
+
+	assetfs "github.com/elazarl/go-bindata-assetfs"
 	"github.com/gin-gonic/gin"
 	"github.com/musenwill/raftdemo/api/mgr"
 	"github.com/musenwill/raftdemo/api/types"
-	"io"
-	"net/http"
-	"os"
 )
 
 type Ctx struct {
@@ -19,12 +20,23 @@ func New(ctx *types.Context) *Ctx {
 	gin.DefaultWriter = io.MultiWriter(f)
 	router := gin.Default()
 
-	router.LoadHTMLGlob("./views/*")
-	router.Static("/static", "./static")
+	fsCss := assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "dist/css", Fallback: "index.html"}
+	fsFonts := assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "dist/fonts", Fallback: "index.html"}
+	fsImg := assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "dist/img", Fallback: "index.html"}
+	fsJs := assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "dist/js", Fallback: "index.html"}
+	fs := assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "dist", Fallback: "index.html"}
+
+	router.StaticFS("/css", &fsCss)
+	router.StaticFS("/fonts", &fsFonts)
+	router.StaticFS("/img", &fsImg)
+	router.StaticFS("/js", &fsJs)
+	router.StaticFS("/favicon.ico", &fs)
 	router.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.html", gin.H{
-			"title": "Users",
-		})
+		c.Writer.WriteHeader(200)
+		indexHtml, _ := Asset("dist/index.html")
+		_, _ = c.Writer.Write(indexHtml)
+		c.Writer.Header().Add("Accept", "text/html")
+		c.Writer.Flush()
 	})
 
 	nodeMgr := &mgr.NodeMgr{Ctx: ctx}
