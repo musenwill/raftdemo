@@ -28,3 +28,10 @@ cd dist
 ```
 pprof -http=:8081 http://localhost:6060/debug/pprof/profile?seconds=60
 ```
+
+## todo
+1. pack static files into execute binary file
+2. /debug/vars
+3. pprof
+4. config
+5. ut
