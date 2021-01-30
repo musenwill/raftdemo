@@ -1,12 +1,13 @@
 package types
 
 import (
+	"strings"
+
 	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/config"
 	"github.com/musenwill/raftdemo/fsm"
 	"github.com/musenwill/raftdemo/model"
 	proxy2 "github.com/musenwill/raftdemo/proxy"
-	"strings"
 )
 
 var NodeStateEnum = struct {
