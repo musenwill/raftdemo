@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package model;
+
+enum EntryType {
+  Nop = 0;
+  Data = 1;
+}
+
+enum StateRole {
+    None = 0;
+    Dummy = 1;
+    Follower = 2;
+    Candidate = 3;
+    Leader = 4;
+}
+
+message Entry {
+    int32 version = 1;
+    int64 id = 2;
+    int64 term = 3;
+    EntryType type = 4;
+    bytes payload = 5;
+}
+
+message AppendEntries {
+	int64 term = 1;
+	int64 prevLogIndex = 2;
+	int64 prevLogTerm = 3;
+	int64 leaderCommit = 4;
+  string leaderID = 5;
+	repeated Entry Entries = 6;
+}
+
+message RequestVote {
+	int64 term = 1;
+	int64 lastLogIndex = 2;
+	int64 lastLogTerm = 3;
+  string candidateID = 4;
+}
+
+message Response {
+	int64 term = 1;
+	bool success = 2;
+}
