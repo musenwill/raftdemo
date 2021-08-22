@@ -1,37 +1,38 @@
-## build frontend
+# introduction
+A demo implement of raft distribution algorithm, demonstrate how election, append entries happens.
 
-1. run node.js docker
-```
-docker run -it --name node -p 9526:9526 -v $PWD:/home node bash
-```
+# build
 
-2. read frontend/README.md and follow its steps
-
-
-## build backend
-
-1. run golang docker
-```
-docker run -it --name golang -v $PWD:/home golang bash
-```
-
-## distribution
-
+1. just build
 ```
 make
-cd dist
-./raftdemo -h
 ```
 
-## pprof
+2. run unit tests
+```
+make test
+```
+
+3. platform cross build
+```
+make build-all
+```
+
+# run
+
+1. command line example
+```
 
 ```
-pprof -http=:8081 http://localhost:6060/debug/pprof/profile?seconds=60
+
+2. config example
 ```
 
-## todo
-1. pack static files into execute binary file
-2. /debug/vars
-3. pprof
-4. config
-5. ut
+```
+
+
+# contact
+
+1. github: github.com/musenwill
+
+2. email: musenwill@qq.com
