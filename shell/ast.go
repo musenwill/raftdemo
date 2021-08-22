@@ -23,6 +23,7 @@ const (
 	AND    = "AND"
 	INDEX  = "INDEX"
 	WRITE  = "WRITE"
+	HELP   = "HELP"
 	QUIT   = "QUIT"
 	EXIT   = "EXIT"
 
@@ -49,6 +50,7 @@ var tokenSet = map[string]bool{
 	"AND":    true,
 	"INDEX":  true,
 	"WRITE":  true,
+	"HELP":   true,
 	"QUIT":   true,
 	"EXIT":   true,
 }
@@ -159,17 +161,22 @@ func UnQuote(str string) string {
 type Statement interface {
 	GetName() string
 	String() string
+	Help() string
 }
 
 type PingStatement struct {
 }
 
 func (s *PingStatement) GetName() string {
-	return "PING"
+	return PING
 }
 
 func (s *PingStatement) String() string {
-	return "PING"
+	return s.GetName()
+}
+
+func (s *PingStatement) Help() string {
+	return s.GetName()
 }
 
 type ShowNodesStatement struct {
@@ -188,6 +195,10 @@ func (s *ShowNodesStatement) String() string {
 	}
 }
 
+func (s *ShowNodesStatement) Help() string {
+	return fmt.Sprintf("%s [WHERE NODE = <nodeID>]", s.GetName())
+}
+
 type ShowLeaderStatement struct {
 }
 
@@ -196,6 +207,10 @@ func (s *ShowLeaderStatement) GetName() string {
 }
 
 func (s *ShowLeaderStatement) String() string {
+	return s.GetName()
+}
+
+func (s *ShowLeaderStatement) Help() string {
 	return s.GetName()
 }
 
@@ -212,6 +227,10 @@ func (s *SetNodeStatement) String() string {
 	return fmt.Sprintf(`%s "%s" %s "%s"`, s.GetName(), s.NodeID, STATE, s.State)
 }
 
+func (s *SetNodeStatement) Help() string {
+	return fmt.Sprintf("%s <nodeID> STATE <state>", s.GetName())
+}
+
 type ShowConfigStatement struct {
 }
 
@@ -220,6 +239,10 @@ func (s *ShowConfigStatement) GetName() string {
 }
 
 func (s *ShowConfigStatement) String() string {
+	return s.GetName()
+}
+
+func (s *ShowConfigStatement) Help() string {
 	return s.GetName()
 }
 
@@ -233,6 +256,10 @@ func (s *SetLogLevelStatement) GetName() string {
 
 func (s *SetLogLevelStatement) String() string {
 	return fmt.Sprintf(`%s %s %s`, s.GetName(), LEVEL, s.Level)
+}
+
+func (s *SetLogLevelStatement) Help() string {
+	return fmt.Sprintf("%s LEVEL <level>", s.GetName())
 }
 
 type ShowLogsStatement struct {
@@ -261,6 +288,10 @@ func (s *ShowLogsStatement) String() string {
 	return str + strings.Join(conditions, " AND ")
 }
 
+func (s *ShowLogsStatement) Help() string {
+	return fmt.Sprintf("%s [WHERE NODE = <nodeID> AND INDEX = <index>]", s.GetName())
+}
+
 type WriteLogStatement struct {
 	Name string
 	Data string
@@ -272,6 +303,10 @@ func (s *WriteLogStatement) GetName() string {
 
 func (s *WriteLogStatement) String() string {
 	return fmt.Sprintf(`%s "%s"`, s.GetName(), s.Data)
+}
+
+func (s *WriteLogStatement) Help() string {
+	return fmt.Sprintf("%s <data>", s.GetName())
 }
 
 type WhereStatement struct {
@@ -286,10 +321,29 @@ type ExitStatement struct {
 }
 
 func (s *ExitStatement) GetName() string {
-	return "EXIT"
+	return EXIT
 }
 
 func (s *ExitStatement) String() string {
+	return s.GetName()
+}
+
+func (s *ExitStatement) Help() string {
+	return "EXIT or QUIT"
+}
+
+type HelpStatement struct {
+}
+
+func (s *HelpStatement) GetName() string {
+	return HELP
+}
+
+func (s *HelpStatement) String() string {
+	return s.GetName()
+}
+
+func (s *HelpStatement) Help() string {
 	return s.GetName()
 }
 
@@ -480,6 +534,8 @@ func (p *Parser) Parse() (Statement, error) {
 		return &ExitStatement{}, nil
 	case PING:
 		return &PingStatement{}, nil
+	case HELP:
+		return &HelpStatement{}, nil
 	case SHOW:
 		pos, token, err := p.scanner.GetToken()
 		if err != nil {

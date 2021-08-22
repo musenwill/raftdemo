@@ -26,6 +26,7 @@ type App struct {
 func (a *App) Open() error {
 	a.execMap = make(map[string]func(stmt Statement) error)
 	a.execMap["PING"] = a.Ping
+	a.execMap["HELP"] = a.Help
 	a.execMap["SHOW NODES"] = a.ShowNodes
 	a.execMap["SHOW LEADER"] = a.ShowLeader
 	a.execMap["SHOW CONFIG"] = a.ShowConfig
@@ -76,6 +77,27 @@ func (a *App) Ping(stmt Statement) error {
 	form.SetTags([]common.Tag{{K: "app name", V: ping.AppName}, {K: "version", V: ping.Version},
 		{K: "build time", V: ping.BuildTime}, {K: "up time", V: ping.UpTime.String()}})
 	fmt.Println(form)
+
+	return nil
+}
+
+func (a *App) Help(stmt Statement) error {
+	helpers := []Statement{
+		&PingStatement{},
+		&HelpStatement{},
+		&ExitStatement{},
+		&ShowNodesStatement{},
+		&ShowLeaderStatement{},
+		&SetNodeStatement{},
+		&ShowConfigStatement{},
+		&SetLogLevelStatement{},
+		&ShowLogsStatement{},
+		&WriteLogStatement{},
+	}
+
+	for _, h := range helpers {
+		fmt.Println(h.Help())
+	}
 
 	return nil
 }
