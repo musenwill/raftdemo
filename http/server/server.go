@@ -175,12 +175,12 @@ func (s *EntryServer) Add(ctx *gin.Context) {
 		return
 	}
 
-	result, httpErr := s.EntryMgr.Add([]byte(param.Data))
+	httpErr = s.EntryMgr.Add([]byte(param.Data))
 	if httpErr != nil {
 		return
 	}
 
-	ctx.JSON(200, result)
+	ctx.JSON(200, nil)
 }
 
 func (m *EntryServer) Register(router *gin.Engine) {

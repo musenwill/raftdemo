@@ -14,6 +14,7 @@ type State interface {
 	OnAppendEntries(param model.AppendEntries) model.Response
 	OnRequestVote(param model.RequestVote) model.Response
 	OnTimeout()
+	State() model.StateRole
 }
 
 type NodeInstance interface {
@@ -22,7 +23,10 @@ type NodeInstance interface {
 
 	GetNodeID() string
 	GetTerm() int64
+	SetTerm(int64)
+	IncreaseTerm()
 	GetCommitIndex() int64
+	SetCommitIndex(int64)
 	GetLastLogIndex() int64
 	GetLastLogTerm() int64
 	GetLastAppliedIndex() int64
@@ -30,7 +34,7 @@ type NodeInstance interface {
 	GetState() model.StateRole
 	SwitchStateTo(state model.StateRole) error
 
-	AppendData(data []byte) (model.Entry, error)
+	AppendData(data []byte) error
 	AppendEntries(entries []model.AppendEntries) error
 	GetEntries() []model.Entry
 	GetEntry(index int64) (model.Entry, error)

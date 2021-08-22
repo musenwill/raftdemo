@@ -8,7 +8,6 @@ import (
 
 	"github.com/musenwill/raftdemo/http/server"
 	"github.com/musenwill/raftdemo/log"
-	"github.com/musenwill/raftdemo/model"
 	"github.com/musenwill/raftdemo/raft"
 	"github.com/musenwill/raftdemo/raft/fsm"
 
@@ -55,6 +54,11 @@ func initProxy(nodes []raft.Node, requestTimeout time.Duration) (*proxy.ChanProx
 }
 
 func startRaft(nodes []raft.Node, proxy proxy.Proxy, cfg *raft.Config) (instances map[string]raft.NodeInstance, err error) {
+	var nodeIDs []string
+	for _, n := range nodes {
+		nodeIDs = append(nodeIDs, n.ID)
+	}
+
 	instances = make(map[string]raft.NodeInstance)
 	defer func() {
 		if err != nil {
@@ -64,12 +68,9 @@ func startRaft(nodes []raft.Node, proxy proxy.Proxy, cfg *raft.Config) (instance
 		}
 	}()
 
-	for i, node := range nodes {
+	for _, node := range nodes {
 		cmt := committer.NewImmCommitter()
-		instance := fsm.NewInstance(node.ID, cmt, proxy, cfg)
-		if i == 0 {
-			instance.State = model.StateRole_Leader
-		}
+		instance := fsm.NewInstance(node.ID, nodeIDs, cmt, proxy, cfg)
 		if err := instance.Open(); err != nil {
 			return instances, err
 		}

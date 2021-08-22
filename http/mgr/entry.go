@@ -42,18 +42,18 @@ func (m *EntryMgr) Get(nodeID string, index int64) (model.Entry, *error2.HttpErr
 	return entry, nil
 }
 
-func (m *EntryMgr) Add(data []byte) (model.Entry, *error2.HttpError) {
+func (m *EntryMgr) Add(data []byte) *error2.HttpError {
 	leader, httpErr := m.Ctx.NodeMgr.GetLeader()
 	if httpErr != nil {
-		return model.Entry{}, httpErr
+		return httpErr
 	}
 
-	entry, err := leader.AppendData(data)
+	err := leader.AppendData(data)
 	if err != nil {
-		return model.Entry{}, error2.ServerError(err)
+		return error2.ServerError(err)
 	}
 
-	return entry, nil
+	return nil
 }
 
 func (m *EntryMgr) getNode(nodeID string) (raft.NodeInstance, *error2.HttpError) {
