@@ -12,6 +12,8 @@ import (
 type Ping struct {
 	AppName   string    `json:"app_name"`
 	Version   string    `json:"version"`
+	Branch    string    `json:"branch"`
+	Commit    string    `json:"commit"`
 	BuildTime string    `json:"build_time"`
 	UpTime    time.Time `json:"up_time"`
 }

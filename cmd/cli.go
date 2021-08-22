@@ -13,9 +13,9 @@ func New() *cli.App {
 	app := cli.NewApp()
 	app.ErrWriter = os.Stdout
 	app.EnableBashCompletion = true
-	app.Name = common.AppName
+	app.Name = "rafts"
 	app.Usage = "A simple raft distribution algorithm simulation demo"
-	app.Version = common.Version
+	app.Version = common.PrintVersion()
 	app.Author = "musenwill"
 	app.Email = "musenwill@qq.com"
 	app.Copyright = fmt.Sprintf("Copyright © 2020 - %v musenwill. All Rights Reserved.", time.Now().Year())

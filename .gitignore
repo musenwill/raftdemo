@@ -1,4 +1,5 @@
-raftdemo
+rafts
+raftc
 *.log
 *.idea
 .DS_Store

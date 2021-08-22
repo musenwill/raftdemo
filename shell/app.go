@@ -74,8 +74,13 @@ func (a *App) Ping(stmt Statement) error {
 		return err
 	}
 	form := common.NewForm()
-	form.SetTags([]common.Tag{{K: "app name", V: ping.AppName}, {K: "version", V: ping.Version},
-		{K: "build time", V: ping.BuildTime}, {K: "up time", V: ping.UpTime.String()}})
+	form.SetTags([]common.Tag{
+		{K: "app name", V: ping.AppName},
+		{K: "version", V: ping.Version},
+		{K: "branch", V: ping.Branch},
+		{K: "commit", V: ping.Commit},
+		{K: "build time", V: ping.BuildTime},
+		{K: "up time", V: ping.UpTime.String()}})
 	fmt.Println(form)
 
 	return nil

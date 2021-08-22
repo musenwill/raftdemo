@@ -250,8 +250,10 @@ func Ping(ctx *gin.Context) {
 	}()
 
 	result := types.Ping{
-		AppName:   common.AppName,
+		AppName:   "rafts",
 		Version:   common.Version,
+		Branch:    common.Branch,
+		Commit:    common.Commit,
 		BuildTime: common.BuildTime,
 		UpTime:    common.UpTime,
 	}
