@@ -6,5 +6,5 @@ import (
 
 type Proxy interface {
 	Send(nodeID string, request interface{}) (model.Response, error)
-	Receive(nodeID string, f func(request interface{}) error) error
+	Receive(nodeID string, f func(request interface{}) model.Response) error
 }

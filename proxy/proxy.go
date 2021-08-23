@@ -79,19 +79,20 @@ func (c *ChanProxy) Send(nodeID string, request interface{}) (model.Response, er
 	}
 }
 
-func (c *ChanProxy) Receive(nodeID string, f func(request interface{}) error) error {
+func (c *ChanProxy) Receive(nodeID string, f func(request interface{}) model.Response) error {
 	e, ok := c.router[nodeID]
 	if !ok {
 		return fmt.Errorf("node with id %v not exist", nodeID)
 	}
 
-	var request interface{}
 	select {
-	case request = <-e.appendEntries.request:
-	case request = <-e.requestVote.request:
+	case request := <-e.appendEntries.request:
+		e.appendEntries.response <- f(request)
+	case request := <-e.requestVote.request:
+		e.requestVote.response <- f(request)
 	}
 
-	return f(request)
+	return nil
 }
 
 type appendEntriesEndpoint struct {

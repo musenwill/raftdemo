@@ -41,4 +41,5 @@ type NodeInstance interface {
 
 	GetLeader() string
 	GetVoteFor() string
+	SetLeader(string)
 }
