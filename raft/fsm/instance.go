@@ -22,7 +22,7 @@ type Instance struct {
 	nodes  []string
 
 	term      atomic.Int64
-	commitID  int64
+	commitID  atomic.Int64
 	appliedID atomic.Int64
 	entries   []model.Entry
 	leader    string
@@ -142,19 +142,31 @@ func (s *Instance) commitJob() {
 }
 
 func (s *Instance) handleRequest(request interface{}) model.Response {
-	s.mu.RLock()
-	state := s.state
-	s.mu.RUnlock()
-
 	switch t := request.(type) {
 	case model.AppendEntries:
-		return state.OnAppendEntries(t)
+		return s.OnAppendEntries(t)
 	case model.RequestVote:
-		return state.OnRequestVote(t)
+		return s.OnRequestVote(t)
 	default:
 		s.logger.Fatalf("unknown request type %t", t)
 		return model.Response{}
 	}
+}
+
+func (s *Instance) OnAppendEntries(request model.AppendEntries) model.Response {
+	s.mu.RLock()
+	state := s.state
+	s.mu.RUnlock()
+
+	return state.OnAppendEntries(request)
+}
+
+func (s *Instance) OnRequestVote(request model.RequestVote) model.Response {
+	s.mu.RLock()
+	state := s.state
+	s.mu.RUnlock()
+
+	return state.OnRequestVote(request)
 }
 
 func (s *Instance) GetNodeID() string {
@@ -165,15 +177,17 @@ func (s *Instance) GetTerm() int64 {
 	return s.term.Load()
 }
 
-func (s *Instance) SetTerm(term int64) {
+func (s *Instance) CompareAndSetTerm(term int64) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if term > s.term.Load() {
 		s.term.Store(term)
-		if err := s.SwitchStateTo(model.StateRole_Follower); err != nil {
-			s.logger.Fatalf("switch state to follower on larger term, %w", err)
-		}
+		return 1
+	} else if term == s.term.Load() {
+		return 0
+	} else {
+		return -1
 	}
 }
 
@@ -185,10 +199,10 @@ func (s *Instance) GetCommitIndex() int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.commitID
+	return s.commitID.Load()
 }
 
-func (s *Instance) SetCommitIndex(commitID int64) {
+func (s *Instance) CompareAndSetCommitIndex(commitID int64) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -197,9 +211,14 @@ func (s *Instance) SetCommitIndex(commitID int64) {
 		commitID = lastLog.Id
 	}
 
-	if commitID > s.commitID {
-		s.commitID = commitID
+	if commitID > s.commitID.Load() {
+		s.commitID.Store(commitID)
 		s.commitIDUpdateCh <- commitID
+		return 1
+	} else if commitID == s.commitID.Load() {
+		return 0
+	} else {
+		return -1
 	}
 }
 
@@ -229,8 +248,8 @@ func (s *Instance) GetState() model.StateRole {
 }
 
 func (s *Instance) SwitchStateTo(state model.StateRole) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	select {
 	case <-s.closing:
