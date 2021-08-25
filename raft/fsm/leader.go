@@ -1,6 +1,8 @@
 package fsm
 
 import (
+	"time"
+
 	"github.com/musenwill/raftdemo/log"
 	"github.com/musenwill/raftdemo/model"
 	"github.com/musenwill/raftdemo/proxy"
@@ -18,20 +20,47 @@ type Leader struct {
 	proxy proxy.Proxy
 	cfg   *raft.Config
 
+	leaving chan bool
+
 	logger log.Logger
 }
 
 func NewLeader(node raft.NodeInstance, nodes []string, proxy proxy.Proxy, cfg *raft.Config, logger log.Logger) *Leader {
 	return &Leader{
-		node:   node,
-		nodes:  nodes,
-		proxy:  proxy,
-		cfg:    cfg,
-		logger: *logger.With(zap.String("state", "leader")),
+		node:    node,
+		nodes:   nodes,
+		proxy:   proxy,
+		cfg:     cfg,
+		leaving: make(chan bool),
+		logger:  *logger.With(zap.String("state", "leader")),
 
 		nextIndex:  make(map[string]int64),
 		matchIndex: make(map[string]int64),
 	}
+}
+
+func (s *Leader) Enter() {
+	s.node.SetReadable(false)
+	s.waitApply()
+	s.notifyWinVote()
+	s.node.AppendNop()
+
+	go func() {
+		ticker := time.NewTicker(s.cfg.ReplicateTimeout)
+		for {
+			select {
+			case <-s.leaving:
+				return
+			case <-ticker.C:
+				s.OnTimeout()
+			}
+		}
+	}()
+}
+
+func (s *Leader) Leave() {
+	close(s.leaving)
+	s.node.SetReadable(true)
 }
 
 func (s *Leader) State() model.StateRole {
@@ -55,4 +84,44 @@ func (s *Leader) OnRequestVote(request model.RequestVote) model.Response {
 	}
 
 	return model.Response{Term: s.node.GetTerm(), Success: false}
+}
+
+func (s *Leader) notifyWinVote() {
+	go func() {
+		for _, n := range s.nodes {
+			nodeID := n
+			select {
+			case <-s.leaving:
+				break
+			default:
+			}
+			go func() {
+				response, err := s.proxy.Send(nodeID, model.AppendEntries{
+					Term:         s.node.GetTerm(),
+					PrevLogIndex: s.node.GetLastLogIndex(),
+					PrevLogTerm:  s.node.GetLastLogTerm(),
+					LeaderCommit: s.node.GetCommitIndex(),
+					LeaderID:     s.node.GetNodeID(),
+				}, s.leaving)
+				if err != nil {
+					s.logger.Errorf("notify win vote, %w", err)
+					return
+				}
+				if response.Term > s.node.GetTerm() {
+					s.node.SwitchStateTo(model.StateRole_Follower)
+				}
+			}()
+		}
+	}()
+}
+
+func (s *Leader) waitApply() {
+	go func() {
+		s.node.WaitApply(s.leaving)
+		s.node.SetReadable(true)
+	}()
+}
+
+func (s *Leader) OnTimeout() {
+
 }

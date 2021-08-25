@@ -35,10 +35,12 @@ type Instance struct {
 
 	requestWaiters map[int64]chan error
 
-	mu               sync.RWMutex
-	wg               sync.WaitGroup
-	commitIDUpdateCh chan int64
-	closing          chan bool
+	mu                sync.RWMutex
+	wg                sync.WaitGroup
+	commitIDUpdateCh  chan int64
+	appliedCIUpdateCh chan int64
+	closing           chan bool
+	readable          atomic.Bool
 
 	logger log.Logger
 }
@@ -59,9 +61,10 @@ func NewInstance(nodeID string, nodes []string, committer committer.Committer, p
 		committer: committer,
 		cfg:       cfg,
 
-		requestWaiters:   make(map[int64]chan error),
-		commitIDUpdateCh: make(chan int64),
-		closing:          make(chan bool),
+		requestWaiters:    make(map[int64]chan error),
+		commitIDUpdateCh:  make(chan int64),
+		appliedCIUpdateCh: make(chan int64),
+		closing:           make(chan bool),
 	}
 }
 
@@ -107,8 +110,8 @@ func (s *Instance) receiveJob() {
 			default:
 			}
 
-			if err := s.proxy.Receive(s.nodeID, s.handleRequest); err != nil {
-				s.logger.Fatalf("receive from proxy %w", err)
+			if err := s.proxy.Receive(s.nodeID, s.handleRequest, s.closing); err != nil {
+				s.logger.Errorf("receive from proxy %w", err)
 			}
 		}
 	}()
@@ -124,16 +127,23 @@ func (s *Instance) commitJob() {
 			case <-s.closing:
 				return
 			case CI := <-s.commitIDUpdateCh:
-				for appliedID := s.appliedID.Load(); appliedID < CI; s.appliedID.Inc() {
-					err := s.committer.Commit(s.entries[appliedID+1].Payload)
+				for appliedID := s.appliedID.Load(); appliedID < CI; {
+					entry := s.entries[appliedID+1]
+					if entry.Type == model.EntryType_Data {
+						err := s.committer.Commit(entry.Payload)
+						if errCh, ok := s.requestWaiters[appliedID+1]; ok {
+							errCh <- err
+							delete(s.requestWaiters, appliedID+1)
+						}
 
-					if errCh, ok := s.requestWaiters[appliedID+1]; ok {
-						errCh <- err
-						delete(s.requestWaiters, appliedID+1)
+						if err != nil {
+							break
+						}
 					}
-
-					if err != nil {
-						break
+					s.appliedID.Inc()
+					select {
+					case s.appliedCIUpdateCh <- s.appliedID.Load():
+					default:
 					}
 				}
 			}
@@ -260,6 +270,22 @@ func (s *Instance) SwitchStateTo(state model.StateRole) error {
 	return nil
 }
 
+func (s *Instance) AppendNop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	lastLog := s.getLastLog()
+
+	entry := model.Entry{
+		Id:      lastLog.Id + 1,
+		Term:    s.term.Load(),
+		Type:    model.EntryType_Nop,
+		Payload: nil,
+	}
+
+	s.entries = append(s.entries, entry)
+}
+
 func (s *Instance) AppendData(data []byte) error {
 	errChan := make(chan error)
 	defer func() {
@@ -311,6 +337,10 @@ func (s *Instance) GetEntries() []model.Entry {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	if !s.readable.Load() {
+		return nil
+	}
+
 	return s.entries
 }
 
@@ -318,11 +348,32 @@ func (s *Instance) GetEntry(index int64) (model.Entry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	if !s.readable.Load() {
+		return model.Entry{}, fmt.Errorf("leader is not readable for the moment")
+	}
+
 	if index >= int64(len(s.entries)) {
 		return model.Entry{}, fmt.Errorf("get entry index out of range")
 	}
 
 	return s.entries[index], nil
+}
+
+func (s *Instance) WaitApply(abort chan bool) {
+	for {
+		select {
+		case <-abort:
+			return
+		case applied := <-s.appliedCIUpdateCh:
+			s.mu.RLock()
+			entry := s.entries[applied]
+			s.mu.RUnlock()
+
+			if entry.Term == s.term.Load() {
+				return
+			}
+		}
+	}
 }
 
 func (s *Instance) GetLeader() string {
@@ -344,6 +395,10 @@ func (s *Instance) GetVoteFor() string {
 	defer s.mu.RUnlock()
 
 	return s.voteFor
+}
+
+func (s *Instance) SetReadable(readable bool) {
+	s.readable.Store(readable)
 }
 
 func (s *Instance) getLastLog() model.Entry {

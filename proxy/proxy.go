@@ -42,7 +42,7 @@ func (p *ChanProxy) ensureImplProxy() {
 	var _ Proxy = &ChanProxy{}
 }
 
-func (c *ChanProxy) Send(nodeID string, request interface{}) (model.Response, error) {
+func (c *ChanProxy) Send(nodeID string, request interface{}, abort chan bool) (model.Response, error) {
 	e, ok := c.router[nodeID]
 	if !ok {
 		return model.Response{}, fmt.Errorf("node with id %v not exist", nodeID)
@@ -52,11 +52,15 @@ func (c *ChanProxy) Send(nodeID string, request interface{}) (model.Response, er
 	switch t := request.(type) {
 	case model.AppendEntries:
 		select {
+		case <-abort:
+			return model.Response{}, fmt.Errorf("aborted")
 		case <-timeout.C:
 			return model.Response{}, fmt.Errorf("timeout")
 		case e.appendEntries.request <- request.(model.AppendEntries):
 		}
 		select {
+		case <-abort:
+			return model.Response{}, fmt.Errorf("aborted")
 		case <-timeout.C:
 			return model.Response{}, fmt.Errorf("timeout")
 		case response := <-e.appendEntries.response:
@@ -64,11 +68,15 @@ func (c *ChanProxy) Send(nodeID string, request interface{}) (model.Response, er
 		}
 	case model.RequestVote:
 		select {
+		case <-abort:
+			return model.Response{}, fmt.Errorf("aborted")
 		case <-timeout.C:
 			return model.Response{}, fmt.Errorf("timeout")
 		case e.requestVote.request <- request.(model.RequestVote):
 		}
 		select {
+		case <-abort:
+			return model.Response{}, fmt.Errorf("aborted")
 		case <-timeout.C:
 			return model.Response{}, fmt.Errorf("timeout")
 		case response := <-e.requestVote.response:
@@ -79,13 +87,15 @@ func (c *ChanProxy) Send(nodeID string, request interface{}) (model.Response, er
 	}
 }
 
-func (c *ChanProxy) Receive(nodeID string, f func(request interface{}) model.Response) error {
+func (c *ChanProxy) Receive(nodeID string, f func(request interface{}) model.Response, abort chan bool) error {
 	e, ok := c.router[nodeID]
 	if !ok {
 		return fmt.Errorf("node with id %v not exist", nodeID)
 	}
 
 	select {
+	case <-abort:
+		return fmt.Errorf("aborted")
 	case request := <-e.appendEntries.request:
 		e.appendEntries.response <- f(request)
 	case request := <-e.requestVote.request:

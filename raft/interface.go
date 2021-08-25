@@ -42,14 +42,19 @@ type NodeInstance interface {
 	GetState() model.StateRole
 	SwitchStateTo(state model.StateRole) error
 
+	AppendNop()
 	AppendData(data []byte) error
 	AppendEntries(entries []model.AppendEntries) error
 	GetEntries() []model.Entry
 	GetEntry(index int64) (model.Entry, error)
 
+	// WaitApply waits until term of the last applied enrty is equal to the current term
+	WaitApply(abort chan bool)
+
 	GetLeader() string
 	GetVoteFor() string
 	SetLeader(string)
+	SetReadable(readable bool)
 
 	OnAppendEntries(param model.AppendEntries) model.Response
 	OnRequestVote(param model.RequestVote) model.Response
