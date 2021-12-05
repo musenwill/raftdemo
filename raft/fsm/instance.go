@@ -111,7 +111,7 @@ func (s *Instance) receiveJob() {
 			}
 
 			if err := s.proxy.Receive(s.nodeID, s.handleRequest, s.closing); err != nil {
-				s.logger.Errorf("receive from proxy %w", err)
+				s.printLog(s.logger.Error, "receive from proxy", err)
 			}
 		}
 	}()
@@ -137,6 +137,7 @@ func (s *Instance) commitJob() {
 						}
 
 						if err != nil {
+							s.printLog(s.logger.Error, fmt.Sprintf("commit log index %d", entry.Id), err)
 							break
 						}
 					}
@@ -158,7 +159,7 @@ func (s *Instance) handleRequest(request interface{}) model.Response {
 	case model.RequestVote:
 		return s.OnRequestVote(t)
 	default:
-		s.logger.Fatalf("unknown request type %t", t)
+		s.printLog(s.logger.Fatal, fmt.Sprintf("unknown request type %t", t), nil)
 		return model.Response{}
 	}
 }
@@ -422,4 +423,15 @@ func (s *Instance) appendData(data []byte) (model.Entry, error) {
 	s.entries = append(s.entries, entry)
 
 	return entry, nil
+}
+
+func (s *Instance) printLog(fn func(args ...interface{}), msg string, err error) {
+	fn(zap.Int64("term", s.term.Load()),
+		zap.Int64("commitID", s.commitID.Load()),
+		zap.Int64("appliedID", s.appliedID.Load()),
+		zap.String("state", s.state.State().String()),
+		zap.Bool("readable", s.readable.Load()),
+		zap.String("leader", s.leader),
+		zap.String("vote for", s.voteFor),
+		zap.String("msg", msg), zap.Error(err))
 }

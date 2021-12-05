@@ -48,7 +48,7 @@ type NodeInstance interface {
 	GetEntries() []model.Entry
 	GetEntry(index int64) (model.Entry, error)
 
-	// WaitApply waits until term of the last applied enrty is equal to the current term
+	// WaitApply waits until term of the last applied entry is equal to the current term
 	WaitApply(abort chan bool)
 
 	GetLeader() string
