@@ -57,6 +57,7 @@ func NewInstance(nodeID string, nodes []string, committer committer.Committer, p
 		nodeID:    nodeID,
 		nodes:     nodeIDs,
 		entries:   make([]model.Entry, 0),
+		state:     &Dummy{},
 		proxy:     proxy,
 		committer: committer,
 		cfg:       cfg,
@@ -321,7 +322,11 @@ func (s *Instance) AppendData(data []byte) error {
 	return <-errChan
 }
 
-func (s *Instance) AppendEntries(entries []model.AppendEntries) error {
+func (s *Instance) AppendEntries(entries []*model.Entry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -331,27 +336,41 @@ func (s *Instance) AppendEntries(entries []model.AppendEntries) error {
 	default:
 	}
 
+	index := len(s.entries) - 1
+	for index >= 0 {
+		if s.entries[index].Term > entries[0].Term {
+			index--
+			continue
+		}
+		if s.entries[index].Id >= entries[0].Id {
+			index--
+			continue
+		}
+	}
+	s.entries = s.entries[:index+1]
+
+	for _, e := range entries {
+		s.entries = append(s.entries, *e)
+	}
+
 	return nil
 }
 
-func (s *Instance) GetEntries() []model.Entry {
+func (s *Instance) GetEntries() []*model.Entry {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if !s.readable.Load() {
-		return nil
+	entries := make([]*model.Entry, 0)
+	for _, e := range s.entries {
+		entries = append(entries, &e)
 	}
 
-	return s.entries
+	return entries
 }
 
 func (s *Instance) GetEntry(index int64) (model.Entry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	if !s.readable.Load() {
-		return model.Entry{}, fmt.Errorf("leader is not readable for the moment")
-	}
 
 	if index >= int64(len(s.entries)) {
 		return model.Entry{}, fmt.Errorf("get entry index out of range")
@@ -396,6 +415,13 @@ func (s *Instance) GetVoteFor() string {
 	defer s.mu.RUnlock()
 
 	return s.voteFor
+}
+
+func (s *Instance) SetVoteFor(voteFor string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.voteFor = voteFor
 }
 
 func (s *Instance) SetReadable(readable bool) {

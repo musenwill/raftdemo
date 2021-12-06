@@ -44,8 +44,8 @@ type NodeInstance interface {
 
 	AppendNop()
 	AppendData(data []byte) error
-	AppendEntries(entries []model.AppendEntries) error
-	GetEntries() []model.Entry
+	AppendEntries(entries []*model.Entry) error
+	GetEntries() []*model.Entry
 	GetEntry(index int64) (model.Entry, error)
 
 	// WaitApply waits until term of the last applied entry is equal to the current term
@@ -54,6 +54,7 @@ type NodeInstance interface {
 	GetLeader() string
 	GetVoteFor() string
 	SetLeader(string)
+	SetVoteFor(voteFor string)
 	SetReadable(readable bool)
 
 	OnAppendEntries(param model.AppendEntries) model.Response
