@@ -195,6 +195,8 @@ func (s *Instance) CompareAndSetTerm(term int64) int {
 
 	if term > s.term.Load() {
 		s.term.Store(term)
+		s.leader = ""
+		s.voteFor = ""
 		return 1
 	} else if term == s.term.Load() {
 		return 0
@@ -204,7 +206,12 @@ func (s *Instance) CompareAndSetTerm(term int64) int {
 }
 
 func (s *Instance) IncreaseTerm() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.term.Inc()
+	s.leader = ""
+	s.voteFor = ""
 }
 
 func (s *Instance) GetCommitIndex() int64 {
@@ -422,6 +429,20 @@ func (s *Instance) SetVoteFor(voteFor string) {
 	defer s.mu.Unlock()
 
 	s.voteFor = voteFor
+}
+
+func (s *Instance) RestLeader() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.leader = ""
+}
+
+func (s *Instance) RestVoteFor() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.voteFor = ""
 }
 
 func (s *Instance) SetReadable(readable bool) {

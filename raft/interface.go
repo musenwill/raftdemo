@@ -54,7 +54,10 @@ type NodeInstance interface {
 	GetLeader() string
 	GetVoteFor() string
 	SetLeader(string)
-	SetVoteFor(voteFor string)
+	SetVoteFor(string)
+	RestLeader()
+	RestVoteFor()
+
 	SetReadable(readable bool)
 
 	OnAppendEntries(param model.AppendEntries) model.Response

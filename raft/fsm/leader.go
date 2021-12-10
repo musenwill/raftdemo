@@ -74,20 +74,20 @@ func (s *Leader) State() model.StateRole {
 	return model.StateRole_Leader
 }
 
-func (s *Leader) OnAppendEntries(request model.AppendEntries) model.Response {
-	if request.Term > s.node.GetTerm() {
+func (s *Leader) OnAppendEntries(param model.AppendEntries) model.Response {
+	if param.Term > s.node.GetTerm() {
 		s.node.SwitchStateTo(model.StateRole_Follower)
-		return s.node.OnAppendEntries(request)
+		return s.node.OnAppendEntries(param)
 	}
 
 	// leader reject any append entries
 	return model.Response{Term: s.node.GetTerm(), Success: false}
 }
 
-func (s *Leader) OnRequestVote(request model.RequestVote) model.Response {
-	if request.Term > s.node.GetTerm() {
+func (s *Leader) OnRequestVote(param model.RequestVote) model.Response {
+	if param.Term > s.node.GetTerm() {
 		s.node.SwitchStateTo(model.StateRole_Follower)
-		return s.node.OnRequestVote(request)
+		return s.node.OnRequestVote(param)
 	}
 
 	return model.Response{Term: s.node.GetTerm(), Success: false}
@@ -140,12 +140,20 @@ func (s *Leader) OnTimeout() {
 			}
 			go func() {
 				nextIndex := s.nextIndex[nodeID]
+				if nextIndex == 0 {
+					nextIndex = 1
+				}
 				entries := s.node.GetEntries()[nextIndex:]
+				preEntry, err := s.node.GetEntry(nextIndex - 1)
+				if err != nil {
+					s.logger.Errorf("append entries, %w", err)
+					return
+				}
 
 				response, err := s.proxy.Send(nodeID, model.AppendEntries{
 					Term:         s.node.GetTerm(),
-					PrevLogIndex: s.node.GetLastLogIndex(),
-					PrevLogTerm:  s.node.GetLastLogTerm(),
+					PrevLogIndex: preEntry.Id,
+					PrevLogTerm:  preEntry.Term,
 					LeaderCommit: s.node.GetCommitIndex(),
 					LeaderID:     s.node.GetNodeID(),
 					Entries:      entries,

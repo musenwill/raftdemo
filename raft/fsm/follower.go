@@ -55,6 +55,7 @@ func (f *Follower) OnAppendEntries(param model.AppendEntries) model.Response {
 		return model.Response{Term: f.node.GetTerm(), Success: false}
 	}
 
+	f.node.SetLeader(param.LeaderID)
 	entry, err := f.node.GetEntry(param.PrevLogIndex)
 	if err != nil {
 		f.logger.Error(err)
