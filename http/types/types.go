@@ -55,8 +55,8 @@ type ListNodesResponse struct {
 }
 
 type ListEntriesResponse struct {
-	Total   int           `json:"total"`
-	Entries []model.Entry `json:"entries"`
+	Total   int            `json:"total"`
+	Entries []*model.Entry `json:"entries"`
 }
 
 type NodeList []Node
