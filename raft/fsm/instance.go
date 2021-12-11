@@ -45,6 +45,8 @@ type Instance struct {
 	logger log.Logger
 }
 
+var _ raft.NodeInstance = &Instance{}
+
 func NewInstance(nodeID string, nodes []string, committer committer.Committer, proxy proxy.Proxy, cfg *raft.Config) *Instance {
 	var nodeIDs []string
 	for _, n := range nodes {
@@ -57,7 +59,6 @@ func NewInstance(nodeID string, nodes []string, committer committer.Committer, p
 		nodeID:    nodeID,
 		nodes:     nodeIDs,
 		entries:   make([]model.Entry, 0),
-		state:     &Dummy{},
 		proxy:     proxy,
 		committer: committer,
 		cfg:       cfg,
@@ -75,6 +76,10 @@ func (s *Instance) Open() error {
 
 	s.logger = *s.cfg.Logger.With(zap.String("nodeID", s.nodeID))
 	s.entries = append(s.entries, model.Entry{}) // empty entry in index 0
+
+	s.state = NewFollower(s, s.cfg, s.logger)
+	s.state.Enter()
+
 	s.receiveJob()
 	s.commitJob()
 
@@ -189,13 +194,12 @@ func (s *Instance) GetTerm() int64 {
 	return s.term.Load()
 }
 
-func (s *Instance) CompareAndSetTerm(term int64) int {
+func (s *Instance) CASTerm(term int64) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if term > s.term.Load() {
 		s.term.Store(term)
-		s.leader = ""
 		s.voteFor = ""
 		return 1
 	} else if term == s.term.Load() {
@@ -210,7 +214,6 @@ func (s *Instance) IncreaseTerm() {
 	defer s.mu.Unlock()
 
 	s.term.Inc()
-	s.leader = ""
 	s.voteFor = ""
 }
 
@@ -221,7 +224,7 @@ func (s *Instance) GetCommitIndex() int64 {
 	return s.commitID.Load()
 }
 
-func (s *Instance) CompareAndSetCommitIndex(commitID int64) int {
+func (s *Instance) CASCommitID(commitID int64) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -363,12 +366,20 @@ func (s *Instance) AppendEntries(entries []*model.Entry) error {
 	return nil
 }
 
-func (s *Instance) GetEntries() []*model.Entry {
+func (s *Instance) GetFollowingEntries(index int64) []*model.Entry {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	entries := make([]*model.Entry, 0)
-	for _, e := range s.entries {
+
+	if index <= 1 {
+		index = 1
+	} else if index >= int64(len(s.entries)) {
+		return entries
+	}
+
+	following := s.entries[index:]
+	for _, e := range following {
 		entries = append(entries, &e)
 	}
 

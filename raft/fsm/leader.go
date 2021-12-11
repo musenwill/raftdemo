@@ -143,7 +143,7 @@ func (s *Leader) OnTimeout() {
 				if nextIndex == 0 {
 					nextIndex = 1
 				}
-				entries := s.node.GetEntries()[nextIndex:]
+				entries := s.node.GetFollowingEntries(nextIndex)
 				preEntry, err := s.node.GetEntry(nextIndex - 1)
 				if err != nil {
 					s.logger.Errorf("append entries, %w", err)

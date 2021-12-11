@@ -51,7 +51,7 @@ func (f *Follower) Leave() {
 }
 
 func (f *Follower) OnAppendEntries(param model.AppendEntries) model.Response {
-	if f.node.CompareAndSetTerm(param.Term) < 0 {
+	if f.node.CASTerm(param.Term) < 0 {
 		return model.Response{Term: f.node.GetTerm(), Success: false}
 	}
 
@@ -74,7 +74,7 @@ func (f *Follower) OnAppendEntries(param model.AppendEntries) model.Response {
 }
 
 func (f *Follower) OnRequestVote(param model.RequestVote) model.Response {
-	if f.node.CompareAndSetTerm(param.Term) < 0 {
+	if f.node.CASTerm(param.Term) < 0 {
 		return model.Response{Term: f.node.GetTerm(), Success: false}
 	}
 

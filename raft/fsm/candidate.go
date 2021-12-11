@@ -59,7 +59,7 @@ func (c *Candidate) Leave() {
 }
 
 func (c *Candidate) OnAppendEntries(param model.AppendEntries) model.Response {
-	if c.node.CompareAndSetTerm(param.Term) < 0 {
+	if c.node.CASTerm(param.Term) < 0 {
 		return model.Response{Term: c.node.GetTerm(), Success: false}
 	}
 
@@ -68,7 +68,7 @@ func (c *Candidate) OnAppendEntries(param model.AppendEntries) model.Response {
 }
 
 func (c *Candidate) OnRequestVote(param model.RequestVote) model.Response {
-	if c.node.CompareAndSetTerm(param.Term) <= 0 {
+	if c.node.CASTerm(param.Term) <= 0 {
 		return model.Response{Term: c.node.GetTerm(), Success: false}
 	}
 
