@@ -54,7 +54,7 @@ func start(c *cli.Context) error {
 		return err
 	}
 
-	OsSignals := make(chan os.Signal)
+	OsSignals := make(chan os.Signal, 1)
 	signal.Notify(OsSignals, syscall.SIGINT, syscall.SIGTERM)
 
 	if c.IsSet(ExecuteFlag.Name) {
