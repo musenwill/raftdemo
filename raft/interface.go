@@ -63,4 +63,6 @@ type NodeInstance interface {
 
 	OnAppendEntries(param model.AppendEntries) model.Response
 	OnRequestVote(param model.RequestVote) model.Response
+
+	Broadcast(name string, abort chan bool, getRequest func(string) (interface{}, error), handleResponse func(string, model.Response))
 }

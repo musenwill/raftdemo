@@ -179,3 +179,43 @@ func (s *Leader) OnTimeout() {
 		}
 	}()
 }
+
+func (s *Leader) getRequest(nodeID string) (model.AppendEntries, error) {
+	nextIndex := s.nextIndex[nodeID]
+	if nextIndex <= 0 {
+		nextIndex = 1
+	}
+	entries := s.node.GetFollowingEntries(nextIndex)
+	preEntry, err := s.node.GetEntry(nextIndex - 1)
+	if err != nil {
+		return model.AppendEntries{}, err
+	}
+
+	return model.AppendEntries{
+		Term:         s.node.GetTerm(),
+		PrevLogIndex: preEntry.Id,
+		PrevLogTerm:  preEntry.Term,
+		LeaderCommit: s.node.GetCommitIndex(),
+		LeaderID:     s.node.GetNodeID(),
+		Entries:      entries,
+	}, nil
+}
+
+func (s *Leader) handleResponse(nodeID string, response model.Response) {
+	if response.Term > s.node.GetTerm() {
+		s.node.SwitchStateTo(model.StateRole_Follower)
+		return
+	}
+
+	nextIndex := s.nextIndex[nodeID]
+	if !response.Success {
+		if nextIndex <= 0 {
+			nextIndex = 1
+		}
+		nextIndex--
+		s.nextIndex[nodeID] = nextIndex
+		s.logger.Info("failed replica log", zap.String("nodeID", nodeID), zap.Int64("lag", s.node.GetLastLogIndex()-nextIndex))
+	} else {
+		s.logger.Info("success replica log", zap.String("nodeID", nodeID), zap.Int64("lag", s.node.GetLastLogIndex()-nextIndex))
+	}
+}

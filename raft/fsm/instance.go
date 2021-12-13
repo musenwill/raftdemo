@@ -460,6 +460,42 @@ func (s *Instance) SetReadable(readable bool) {
 	s.readable.Store(readable)
 }
 
+func (s *Instance) Broadcast(name string, abort chan bool, getRequest func(string) (interface{}, error), handleResponse func(string, model.Response)) {
+	go func() {
+		for _, n := range s.nodes {
+			nodeID := n
+			select {
+			case <-abort:
+				return
+			default:
+			}
+			go func() {
+				request, err := getRequest(nodeID)
+				if err != nil {
+					s.logger.Errorf("%s, %w", name, err)
+					return
+				}
+				select {
+				case <-abort:
+					return
+				default:
+				}
+				response, err := s.proxy.Send(nodeID, request, abort)
+				if err != nil {
+					s.logger.Errorf("%s, %w", name, err)
+					return
+				}
+				select {
+				case <-abort:
+					return
+				default:
+				}
+				handleResponse(nodeID, response)
+			}()
+		}
+	}()
+}
+
 func (s *Instance) getLastLog() model.Entry {
 	if len(s.entries) == 0 {
 		return model.Entry{}
