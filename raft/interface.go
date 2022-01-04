@@ -35,8 +35,6 @@ type NodeInstance interface {
 	// return 0 if param == current CI
 	// return 1 if param > current CI
 	CASCommitID(int64) int
-	GetLastLogIndex() int64
-	GetLastLogTerm() int64
 	GetLastAppliedIndex() int64
 
 	GetState() model.StateRole
@@ -48,6 +46,7 @@ type NodeInstance interface {
 	// GetFollowingEntries returns entries which >= index
 	GetFollowingEntries(index int64) []*model.Entry
 	GetEntry(index int64) (model.Entry, error)
+	GetLastEntry() model.Entry
 
 	// WaitApply waits until term of the last applied entry is equal to the current term
 	WaitApply(abort chan bool)
