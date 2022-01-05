@@ -6,7 +6,6 @@ import (
 
 	"github.com/musenwill/raftdemo/log"
 	"github.com/musenwill/raftdemo/model"
-	"github.com/musenwill/raftdemo/proxy"
 	"github.com/musenwill/raftdemo/raft"
 	"go.uber.org/zap"
 )
@@ -16,19 +15,13 @@ type Candidate struct {
 	cfg  *raft.Config
 
 	leaving chan bool
-
-	nodes []string
-	proxy proxy.Proxy
-
-	logger log.Logger
+	logger  log.Logger
 }
 
-func NewCandidate(node raft.NodeInstance, nodes []string, proxy proxy.Proxy, cfg *raft.Config, logger log.Logger) *Candidate {
+func NewCandidate(node raft.NodeInstance, cfg *raft.Config, logger log.Logger) *Candidate {
 	rand.Seed(time.Now().UnixNano())
 	return &Candidate{
 		node:    node,
-		nodes:   nodes,
-		proxy:   proxy,
 		cfg:     cfg,
 		leaving: make(chan bool),
 		logger:  *logger.With(zap.String("state", "follower")),
@@ -87,7 +80,7 @@ func (c *Candidate) OnTimeout() {
 				return
 			case <-votesC:
 				count++
-				if count >= len(c.nodes)/2 {
+				if count >= int(c.cfg.Nodes)/2 {
 					c.node.SwitchStateTo(model.StateRole_Leader)
 					return
 				}
@@ -95,35 +88,30 @@ func (c *Candidate) OnTimeout() {
 		}
 	}()
 
-	go func() {
-		for _, n := range c.nodes {
-			nodeID := n
-			select {
-			case <-c.leaving:
-				break
-			default:
-			}
-			go func() {
-				response, err := c.proxy.Send(nodeID, model.RequestVote{
-					Term:         c.node.GetTerm(),
-					LastLogIndex: c.node.GetLastLogIndex(),
-					LastLogTerm:  c.node.GetLastLogTerm(),
-					CandidateID:  c.node.GetNodeID(),
-				}, c.leaving)
-				if err != nil {
-					c.logger.Errorf("append entries, %w", err)
-					return
-				}
-				if response.Term > c.node.GetTerm() {
-					c.node.SwitchStateTo(model.StateRole_Follower)
-				}
-				if response.Success {
-					c.logger.Info("receive vote", zap.String("voter", nodeID))
-					votesC <- struct{}{}
-				}
-			}()
+	term := c.node.GetTerm()
+	lastEntry := c.node.GetLastEntry()
+	request := &model.RequestVote{
+		Term:         c.node.GetTerm(),
+		LastLogIndex: lastEntry.Id,
+		LastLogTerm:  lastEntry.Term,
+		CandidateID:  c.node.GetNodeID(),
+	}
+
+	getRequestF := func(nodeID string) (interface{}, error) {
+		return *request, nil
+	}
+
+	handleResponseF := func(nodeID string, response model.Response) {
+		if response.Term > term {
+			c.node.SwitchStateTo(model.StateRole_Follower)
 		}
-	}()
+		if response.Success {
+			c.logger.Info("receive vote", zap.String("voter", nodeID))
+			votesC <- struct{}{}
+		}
+	}
+
+	c.node.Broadcast("election campaign", c.leaving, getRequestF, handleResponseF)
 }
 
 func (c *Candidate) State() model.StateRole {

@@ -77,8 +77,8 @@ func NewInstance(nodeID string, nodes []string, committer committer.Committer, p
 		committer: committer,
 		cfg:       cfg,
 
-		commitIDUpdateCh:  make(chan int64),
-		appliedCIUpdateCh: make(chan int64),
+		commitIDUpdateCh:  make(chan int64, 1),
+		appliedCIUpdateCh: make(chan int64, 1),
 		closing:           make(chan bool),
 	}
 

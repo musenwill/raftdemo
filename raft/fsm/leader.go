@@ -5,40 +5,35 @@ import (
 
 	"github.com/musenwill/raftdemo/log"
 	"github.com/musenwill/raftdemo/model"
-	"github.com/musenwill/raftdemo/proxy"
 	"github.com/musenwill/raftdemo/raft"
 	"go.uber.org/zap"
 )
 
 type Leader struct {
-	node  raft.NodeInstance
-	nodes []string
+	node raft.NodeInstance
 
 	nextIndex  map[string]int64
 	matchIndex map[string]int64
+	nodes      []string
 
-	proxy proxy.Proxy
-	cfg   *raft.Config
-
+	cfg     *raft.Config
 	leaving chan bool
-
-	logger log.Logger
+	logger  log.Logger
 }
 
-func NewLeader(node raft.NodeInstance, nodes []string, proxy proxy.Proxy, cfg *raft.Config, logger log.Logger) *Leader {
+func NewLeader(node raft.NodeInstance, nodes []string, cfg *raft.Config, logger log.Logger) *Leader {
 	leader := &Leader{
 		node:    node,
-		nodes:   nodes,
-		proxy:   proxy,
 		cfg:     cfg,
 		leaving: make(chan bool),
 		logger:  *logger.With(zap.String("state", "leader")),
 
+		nodes:      nodes,
 		nextIndex:  make(map[string]int64),
 		matchIndex: make(map[string]int64),
 	}
 
-	lastLogIndex := node.GetLastLogIndex()
+	lastLogIndex := node.GetLastEntry().Id
 	for _, n := range nodes {
 		leader.nextIndex[n] = lastLogIndex
 	}
@@ -94,32 +89,26 @@ func (s *Leader) OnRequestVote(param model.RequestVote) model.Response {
 }
 
 func (s *Leader) notifyWinVote() {
-	go func() {
-		for _, n := range s.nodes {
-			nodeID := n
-			select {
-			case <-s.leaving:
-				break
-			default:
-			}
-			go func() {
-				response, err := s.proxy.Send(nodeID, model.AppendEntries{
-					Term:         s.node.GetTerm(),
-					PrevLogIndex: s.node.GetLastLogIndex(),
-					PrevLogTerm:  s.node.GetLastLogTerm(),
-					LeaderCommit: s.node.GetCommitIndex(),
-					LeaderID:     s.node.GetNodeID(),
-				}, s.leaving)
-				if err != nil {
-					s.logger.Errorf("notify win vote, %w", err)
-					return
-				}
-				if response.Term > s.node.GetTerm() {
-					s.node.SwitchStateTo(model.StateRole_Follower)
-				}
-			}()
+	term := s.node.GetTerm()
+	lastEntry := s.node.GetLastEntry()
+	request := &model.AppendEntries{
+		Term:         s.node.GetTerm(),
+		PrevLogIndex: lastEntry.Id,
+		PrevLogTerm:  lastEntry.Term,
+		LeaderCommit: s.node.GetCommitIndex(),
+		LeaderID:     s.node.GetNodeID(),
+	}
+
+	getRequestF := func(nodeID string) (interface{}, error) {
+		return *request, nil
+	}
+	handleResponseF := func(nodeID string, response model.Response) {
+		if response.Term > term {
+			s.node.SwitchStateTo(model.StateRole_Follower)
 		}
-	}()
+	}
+
+	s.node.Broadcast("win vote", s.leaving, getRequestF, handleResponseF)
 }
 
 func (s *Leader) waitApply() {
@@ -130,57 +119,10 @@ func (s *Leader) waitApply() {
 }
 
 func (s *Leader) OnTimeout() {
-	go func() {
-		for _, n := range s.nodes {
-			nodeID := n
-			select {
-			case <-s.leaving:
-				break
-			default:
-			}
-			go func() {
-				nextIndex := s.nextIndex[nodeID]
-				if nextIndex == 0 {
-					nextIndex = 1
-				}
-				entries := s.node.GetFollowingEntries(nextIndex)
-				preEntry, err := s.node.GetEntry(nextIndex - 1)
-				if err != nil {
-					s.logger.Errorf("append entries, %w", err)
-					return
-				}
-
-				response, err := s.proxy.Send(nodeID, model.AppendEntries{
-					Term:         s.node.GetTerm(),
-					PrevLogIndex: preEntry.Id,
-					PrevLogTerm:  preEntry.Term,
-					LeaderCommit: s.node.GetCommitIndex(),
-					LeaderID:     s.node.GetNodeID(),
-					Entries:      entries,
-				}, s.leaving)
-				if err != nil {
-					s.logger.Errorf("append entries, %w", err)
-					return
-				}
-				if response.Term > s.node.GetTerm() {
-					s.node.SwitchStateTo(model.StateRole_Follower)
-				}
-				if !response.Success {
-					nextIndex--
-					if nextIndex < 0 {
-						nextIndex = 0
-					}
-					s.nextIndex[nodeID] = nextIndex
-					s.logger.Info("failed replica log", zap.String("nodeID", nodeID), zap.Int64("logID", nextIndex))
-				} else {
-					s.logger.Info("success replica log", zap.String("nodeID", nodeID), zap.Int64("logID", nextIndex))
-				}
-			}()
-		}
-	}()
+	s.node.Broadcast("append request", s.leaving, s.getRequest, s.handleResponse)
 }
 
-func (s *Leader) getRequest(nodeID string) (model.AppendEntries, error) {
+func (s *Leader) getRequest(nodeID string) (interface{}, error) {
 	nextIndex := s.nextIndex[nodeID]
 	if nextIndex <= 0 {
 		nextIndex = 1
@@ -207,6 +149,8 @@ func (s *Leader) handleResponse(nodeID string, response model.Response) {
 		return
 	}
 
+	lastEntry := s.node.GetLastEntry()
+
 	nextIndex := s.nextIndex[nodeID]
 	if !response.Success {
 		if nextIndex <= 0 {
@@ -214,8 +158,8 @@ func (s *Leader) handleResponse(nodeID string, response model.Response) {
 		}
 		nextIndex--
 		s.nextIndex[nodeID] = nextIndex
-		s.logger.Info("failed replica log", zap.String("nodeID", nodeID), zap.Int64("lag", s.node.GetLastLogIndex()-nextIndex))
+		s.logger.Info("failed replica log", zap.String("nodeID", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
 	} else {
-		s.logger.Info("success replica log", zap.String("nodeID", nodeID), zap.Int64("lag", s.node.GetLastLogIndex()-nextIndex))
+		s.logger.Info("success replica log", zap.String("nodeID", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
 	}
 }

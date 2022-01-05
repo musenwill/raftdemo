@@ -21,7 +21,7 @@ func (m *EntryMgr) List(nodeID string) (types.ListEntriesResponse, *error2.HttpE
 		return result, err
 	}
 
-	entries := node.GetEntries()
+	entries := node.GetFollowingEntries(0)
 	result.Entries = entries
 	result.Total = len(entries)
 

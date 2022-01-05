@@ -39,14 +39,15 @@ func (m *NodeMgr) Get(nodeID string) (types.Node, *error2.HttpError) {
 }
 
 func (m *NodeMgr) WrapNode(node raft.NodeInstance) types.Node {
+	lastEntry := node.GetLastEntry()
 	return types.Node{
 		ID:            node.GetNodeID(),
 		Term:          node.GetTerm(),
 		State:         node.GetState().String(),
 		CommitID:      node.GetCommitIndex(),
 		LastAppliedID: node.GetLastAppliedIndex(),
-		LastLogID:     node.GetLastLogIndex(),
-		LastLogTerm:   node.GetLastLogTerm(),
+		LastLogID:     lastEntry.Id,
+		LastLogTerm:   lastEntry.Term,
 		Leader:        node.GetLeader(),
 		VoteFor:       node.GetVoteFor(),
 	}

@@ -55,6 +55,8 @@ func (f *Follower) OnAppendEntries(param model.AppendEntries) model.Response {
 		return model.Response{Term: f.node.GetTerm(), Success: false}
 	}
 
+	f.heartBeat <- true
+
 	f.node.SetLeader(param.LeaderID)
 	entry, err := f.node.GetEntry(param.PrevLogIndex)
 	if err != nil {
@@ -78,11 +80,15 @@ func (f *Follower) OnRequestVote(param model.RequestVote) model.Response {
 		return model.Response{Term: f.node.GetTerm(), Success: false}
 	}
 
+	f.heartBeat <- true
+
 	if f.node.GetVoteFor() != "" {
 		return model.Response{Term: f.node.GetTerm(), Success: false}
 	}
 
-	if f.node.GetLastLogTerm() <= param.LastLogTerm && f.node.GetLastLogIndex() <= param.LastLogIndex {
+	lastEntry := f.node.GetLastEntry()
+
+	if lastEntry.Term <= param.LastLogTerm && lastEntry.Id <= param.LastLogIndex {
 		f.node.SetVoteFor(param.CandidateID)
 		return model.Response{Term: f.node.GetTerm(), Success: true}
 	}
