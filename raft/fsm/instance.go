@@ -276,6 +276,29 @@ func (s *Instance) SwitchStateTo(state model.StateRole) error {
 	default:
 	}
 
+	if s.muState.state.State() == state {
+		return nil
+	}
+
+	var st raft.State
+
+	switch state {
+	case model.StateRole_Leader:
+		st = NewLeader(s, s.nodes, s.cfg, s.logger)
+	case model.StateRole_Follower:
+		st = NewFollower(s, s.cfg, s.logger)
+	case model.StateRole_Candidate:
+		st = NewCandidate(s, s.cfg, s.logger)
+	case model.StateRole_Dummy:
+		st = &Dummy{}
+	default:
+		return fmt.Errorf("unsupported state %s", state)
+	}
+
+	s.muState.state.Leave()
+	s.muState.state = st
+	st.Enter()
+
 	return nil
 }
 
@@ -462,6 +485,10 @@ func (s *Instance) RestVoteFor() {
 	defer s.mu.Unlock()
 
 	s.mu.voteFor = ""
+}
+
+func (s *Instance) Readable() bool {
+	return s.readable.Load()
 }
 
 func (s *Instance) SetReadable(readable bool) {

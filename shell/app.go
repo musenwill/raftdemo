@@ -291,7 +291,7 @@ func (a *App) showLogs(nodeID string) error {
 	}
 	form := common.NewForm()
 	form.SetTags([]common.Tag{{K: "name", V: "entries"}, {K: "total", V: fmt.Sprintf("%d", entryList.Total)}})
-	form.SetHeader((&types.Node{}).Header())
+	form.SetHeader((&model.Entry{}).Header())
 	for _, e := range entryList.Entries {
 		form.AddRow(e.Row())
 	}

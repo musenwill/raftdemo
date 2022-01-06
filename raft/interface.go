@@ -58,6 +58,7 @@ type NodeInstance interface {
 	RestLeader()
 	RestVoteFor()
 
+	Readable() bool
 	SetReadable(readable bool)
 
 	OnAppendEntries(param model.AppendEntries) model.Response

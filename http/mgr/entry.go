@@ -1,6 +1,7 @@
 package mgr
 
 import (
+	"fmt"
 	"strings"
 
 	error2 "github.com/musenwill/raftdemo/http/error"
@@ -8,6 +9,10 @@ import (
 	"github.com/musenwill/raftdemo/model"
 	"github.com/musenwill/raftdemo/raft"
 )
+
+func NodeUnreadable(nodeID string) error {
+	return fmt.Errorf("node %s is unreadable", nodeID)
+}
 
 type EntryMgr struct {
 	Ctx *Context
@@ -19,6 +24,9 @@ func (m *EntryMgr) List(nodeID string) (types.ListEntriesResponse, *error2.HttpE
 	node, err := m.getNode(nodeID)
 	if err != nil {
 		return result, err
+	}
+	if !node.Readable() {
+		return result, error2.ForbiddenError(NodeUnreadable(nodeID))
 	}
 
 	entries := node.GetFollowingEntries(0)
@@ -32,6 +40,9 @@ func (m *EntryMgr) Get(nodeID string, index int64) (model.Entry, *error2.HttpErr
 	node, err := m.getNode(nodeID)
 	if err != nil {
 		return model.Entry{}, err
+	}
+	if !node.Readable() {
+		return model.Entry{}, error2.ForbiddenError(NodeUnreadable(nodeID))
 	}
 
 	entry, e := node.GetEntry(index)

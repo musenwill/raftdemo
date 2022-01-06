@@ -35,7 +35,8 @@ func NewLeader(node raft.NodeInstance, nodes []string, cfg *raft.Config, logger 
 
 	lastLogIndex := node.GetLastEntry().Id
 	for _, n := range nodes {
-		leader.nextIndex[n] = lastLogIndex
+		leader.nextIndex[n] = lastLogIndex + 1
+		leader.matchIndex[n] = 0
 	}
 
 	return leader
@@ -153,13 +154,18 @@ func (s *Leader) handleResponse(nodeID string, response model.Response) {
 
 	nextIndex := s.nextIndex[nodeID]
 	if !response.Success {
+		nextIndex--
 		if nextIndex <= 0 {
 			nextIndex = 1
 		}
-		nextIndex--
 		s.nextIndex[nodeID] = nextIndex
 		s.logger.Info("failed replica log", zap.String("nodeID", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
 	} else {
+		s.updateMatchIndex(nodeID)
 		s.logger.Info("success replica log", zap.String("nodeID", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
 	}
+}
+
+func (s *Leader) updateMatchIndex(nodeID string) {
+	s.matchIndex[nodeID] = s.nextIndex[nodeID] - 1
 }

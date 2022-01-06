@@ -102,13 +102,12 @@ func startPprof(port uint) {
 
 func handleExit(rightNow bool, instances map[string]raft.NodeInstance, srv *http.Server) {
 	common.GracefulExit(rightNow, func() error {
-		if instances != nil {
-			for _, s := range instances {
-				if err := s.Close(); err != nil {
-					fmt.Printf("close %s: %s\n", s.GetNodeID(), err)
-				}
+		for _, s := range instances {
+			if err := s.Close(); err != nil {
+				fmt.Printf("close %s: %s\n", s.GetNodeID(), err)
 			}
 		}
+
 		if srv != nil {
 			return srv.Shutdown(context.Background())
 		}

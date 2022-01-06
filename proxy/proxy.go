@@ -23,12 +23,12 @@ func NewChanProxy(nodes []raft.Node, timeout time.Duration) *ChanProxy {
 		if _, ok := proxy.router[node.ID]; !ok {
 			e := endpoint{
 				appendEntries: appendEntriesEndpoint{
-					request:  make(chan model.AppendEntries),
-					response: make(chan model.Response),
+					request:  make(chan model.AppendEntries, 1),
+					response: make(chan model.Response, 1),
 				},
 				requestVote: requestVoteEndpoint{
-					request:  make(chan model.RequestVote),
-					response: make(chan model.Response),
+					request:  make(chan model.RequestVote, 1),
+					response: make(chan model.Response, 1),
 				},
 			}
 			proxy.router[node.ID] = e
@@ -36,10 +36,6 @@ func NewChanProxy(nodes []raft.Node, timeout time.Duration) *ChanProxy {
 	}
 
 	return proxy
-}
-
-func (p *ChanProxy) ensureImplProxy() {
-	var _ Proxy = &ChanProxy{}
 }
 
 func (c *ChanProxy) Send(nodeID string, request interface{}, abort chan bool) (model.Response, error) {
@@ -55,14 +51,14 @@ func (c *ChanProxy) Send(nodeID string, request interface{}, abort chan bool) (m
 		case <-abort:
 			return model.Response{}, fmt.Errorf("aborted")
 		case <-timeout.C:
-			return model.Response{}, fmt.Errorf("timeout")
+			return model.Response{}, fmt.Errorf("send append entries timeout")
 		case e.appendEntries.request <- request.(model.AppendEntries):
 		}
 		select {
 		case <-abort:
 			return model.Response{}, fmt.Errorf("aborted")
 		case <-timeout.C:
-			return model.Response{}, fmt.Errorf("timeout")
+			return model.Response{}, fmt.Errorf("receive append entries response timeout")
 		case response := <-e.appendEntries.response:
 			return response, nil
 		}
@@ -71,14 +67,14 @@ func (c *ChanProxy) Send(nodeID string, request interface{}, abort chan bool) (m
 		case <-abort:
 			return model.Response{}, fmt.Errorf("aborted")
 		case <-timeout.C:
-			return model.Response{}, fmt.Errorf("timeout")
+			return model.Response{}, fmt.Errorf("send request vote timeout")
 		case e.requestVote.request <- request.(model.RequestVote):
 		}
 		select {
 		case <-abort:
 			return model.Response{}, fmt.Errorf("aborted")
 		case <-timeout.C:
-			return model.Response{}, fmt.Errorf("timeout")
+			return model.Response{}, fmt.Errorf("recevie request vote response timeout")
 		case response := <-e.requestVote.response:
 			return response, nil
 		}
@@ -97,9 +93,17 @@ func (c *ChanProxy) Receive(nodeID string, f func(request interface{}) model.Res
 	case <-abort:
 		return fmt.Errorf("aborted")
 	case request := <-e.appendEntries.request:
-		e.appendEntries.response <- f(request)
+		select {
+		case <-abort:
+			return fmt.Errorf("aborted")
+		case e.appendEntries.response <- f(request):
+		}
 	case request := <-e.requestVote.request:
-		e.requestVote.response <- f(request)
+		select {
+		case <-abort:
+			return fmt.Errorf("aborted")
+		case e.requestVote.response <- f(request):
+		}
 	}
 
 	return nil

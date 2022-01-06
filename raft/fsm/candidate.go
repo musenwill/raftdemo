@@ -70,10 +70,15 @@ func (c *Candidate) OnRequestVote(param model.RequestVote) model.Response {
 }
 
 func (c *Candidate) OnTimeout() {
+	c.node.IncreaseTerm()
 	votesC := make(chan struct{})
 
 	go func() {
 		count := 0
+		if count >= int(c.cfg.Nodes)/2 {
+			c.node.SwitchStateTo(model.StateRole_Leader)
+			return
+		}
 		for {
 			select {
 			case <-c.leaving:
