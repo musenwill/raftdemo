@@ -15,7 +15,7 @@ import (
 
 const MaxRequests = 1000
 
-var NodeClosedErr = fmt.Errorf("node instance closed")
+var ErrNodeClosed = fmt.Errorf("node instance closed")
 
 type Instance struct {
 	nodeID string
@@ -103,7 +103,7 @@ func (s *Instance) Open() error {
 func (s *Instance) Close() error {
 	select {
 	case <-s.closing:
-		return NodeClosedErr
+		return ErrNodeClosed
 	default:
 	}
 
@@ -144,7 +144,7 @@ func (s *Instance) commitJob() {
 			case <-s.closing:
 				return
 			case CI := <-s.commitIDUpdateCh:
-				for appliedID := s.appliedID.Load(); appliedID < CI; {
+				for appliedID := s.appliedID.Load(); appliedID < CI; appliedID = s.appliedID.Load() {
 					// the entries before ci is readonly, can't have conflict access, so no need to wrap in lock
 					entry := s.mu.entries[appliedID+1]
 					if entry.Type == model.EntryType_Data {
@@ -161,6 +161,7 @@ func (s *Instance) commitJob() {
 							break
 						}
 					}
+
 					s.appliedID.Inc()
 					select {
 					case s.appliedCIUpdateCh <- s.appliedID.Load():
@@ -272,7 +273,7 @@ func (s *Instance) SwitchStateTo(state model.StateRole) error {
 
 	select {
 	case <-s.closing:
-		return NodeClosedErr
+		return ErrNodeClosed
 	default:
 	}
 
@@ -326,7 +327,7 @@ func (s *Instance) AppendData(data []byte) error {
 	if err := func() error {
 		select {
 		case <-s.closing:
-			return NodeClosedErr
+			return ErrNodeClosed
 		default:
 		}
 
@@ -361,7 +362,7 @@ func (s *Instance) AppendEntries(entries []*model.Entry) error {
 
 	select {
 	case <-s.closing:
-		return NodeClosedErr
+		return ErrNodeClosed
 	default:
 	}
 

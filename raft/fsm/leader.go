@@ -121,6 +121,7 @@ func (s *Leader) waitApply() {
 
 func (s *Leader) OnTimeout() {
 	s.node.Broadcast("append request", s.leaving, s.getRequest, s.handleResponse)
+	s.checkMatchIndex()
 }
 
 func (s *Leader) getRequest(nodeID string) (interface{}, error) {
@@ -168,4 +169,31 @@ func (s *Leader) handleResponse(nodeID string, response model.Response) {
 
 func (s *Leader) updateMatchIndex(nodeID string) {
 	s.matchIndex[nodeID] = s.nextIndex[nodeID] - 1
+}
+
+func (s *Leader) checkMatchIndex() {
+	latestIndexes := make([]int64, 0)
+
+	commitIndex := s.node.GetCommitIndex()
+	lastIndex := s.node.GetLastEntry().Id
+
+	if lastIndex > commitIndex {
+		latestIndexes = append(latestIndexes, lastIndex)
+	}
+
+	for _, m := range s.matchIndex {
+		if m > commitIndex {
+			latestIndexes = append(latestIndexes, m)
+		}
+	}
+
+	if len(latestIndexes) > (len(s.nodes)+1)/2 {
+		min := latestIndexes[0]
+		for _, i := range latestIndexes {
+			if i < min {
+				min = i
+			}
+		}
+		s.node.CASCommitID(min)
+	}
 }
