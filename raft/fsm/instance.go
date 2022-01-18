@@ -144,6 +144,8 @@ func (s *Instance) commitJob() {
 			case <-s.closing:
 				return
 			case CI := <-s.commitIDUpdateCh:
+				s.logger.Info("commit id updated", zap.Int64("CI", CI))
+
 				for appliedID := s.appliedID.Load(); appliedID < CI; appliedID = s.appliedID.Load() {
 					// the entries before ci is readonly, can't have conflict access, so no need to wrap in lock
 					entry := s.mu.entries[appliedID+1]
@@ -163,6 +165,8 @@ func (s *Instance) commitJob() {
 					}
 
 					s.appliedID.Inc()
+					s.logger.Info("applied id updated", zap.Int64("CI", s.appliedID.Load()))
+
 					select {
 					case s.appliedCIUpdateCh <- s.appliedID.Load():
 					default:
@@ -321,6 +325,7 @@ func (s *Instance) AppendNop() {
 func (s *Instance) AppendData(data []byte) error {
 	errChan := make(chan error)
 	defer func() {
+		s.logger.Info("finish write: " + string(data))
 		close(errChan)
 	}()
 
@@ -351,7 +356,7 @@ func (s *Instance) AppendData(data []byte) error {
 	}(); err != nil {
 		return err
 	}
-
+	s.logger.Info("waitting write: " + string(data))
 	return <-errChan
 }
 
@@ -549,6 +554,7 @@ func (s *Instance) appendData(data []byte) (model.Entry, error) {
 	}
 
 	s.mu.entries = append(s.mu.entries, entry)
+	s.mu.lastID.Inc()
 
 	return entry, nil
 }
