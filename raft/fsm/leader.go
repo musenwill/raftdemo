@@ -159,10 +159,10 @@ func (s *Leader) handleResponse(nodeID string, response model.Response) {
 			nextIndex = 1
 		}
 		s.nextIndex[nodeID] = nextIndex
-		s.logger.Info("failed replica log", zap.String("nodeID", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
+		s.printLog(s.logger.Info, "failed replica log", zap.String("peer", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
 	} else {
 		s.updateMatchIndex(nodeID)
-		s.logger.Info("success replica log", zap.String("nodeID", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
+		s.printLog(s.logger.Info, "success replica log", zap.String("peer", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
 	}
 }
 
@@ -195,4 +195,12 @@ func (s *Leader) checkMatchIndex() {
 		}
 		s.node.CASCommitID(min)
 	}
+}
+
+func (s *Leader) printLog(fn func(msg string, fields ...zap.Field), msg string, fields ...zap.Field) {
+	fields = append(fields, zap.Int64("term", s.node.GetTerm()),
+		zap.Int64("commitID", s.node.GetCommitIndex()),
+		zap.Int64("appliedID", s.node.GetLastAppliedIndex()),
+		zap.Bool("readable", s.node.Readable()))
+	fn(msg, fields...)
 }

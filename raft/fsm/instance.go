@@ -127,7 +127,7 @@ func (s *Instance) receiveJob() {
 			}
 
 			if err := s.proxy.Receive(s.nodeID, s.handleRequest, s.closing); err != nil {
-				s.printLog(s.logger.Error, "receive from proxy", err)
+				s.printLog(s.logger.Error, "receive from proxy", zap.Error(err))
 			}
 		}
 	}()
@@ -143,8 +143,6 @@ func (s *Instance) commitJob() {
 			case <-s.closing:
 				return
 			case CI := <-s.commitIDUpdateCh:
-				s.logger.Info("commit id updated", zap.Int64("CI", CI))
-
 				for appliedID := s.appliedID.Load(); appliedID < CI; appliedID = s.appliedID.Load() {
 					// the entries before ci is readonly, can't have conflict access, so no need to wrap in lock
 					entry := s.mu.entries[appliedID+1]
@@ -158,13 +156,12 @@ func (s *Instance) commitJob() {
 						}
 
 						if err != nil {
-							s.printLog(s.logger.Error, fmt.Sprintf("commit log index %d", entry.Id), err)
+							s.printLog(s.logger.Error, fmt.Sprintf("commit log index %d", entry.Id), zap.Error(err))
 							break
 						}
 					}
 
 					s.appliedID.Inc()
-					s.logger.Info("applied id updated", zap.Int64("CI", s.appliedID.Load()))
 
 					select {
 					case s.appliedCIUpdateCh <- s.appliedID.Load():
@@ -183,7 +180,7 @@ func (s *Instance) handleRequest(request interface{}) model.Response {
 	case model.RequestVote:
 		return s.OnRequestVote(t)
 	default:
-		s.printLog(s.logger.Fatal, fmt.Sprintf("unknown request type %t", t), nil)
+		s.printLog(s.logger.Fatal, fmt.Sprintf("unknown request type %t", t))
 		return model.Response{}
 	}
 }
@@ -324,7 +321,6 @@ func (s *Instance) AppendNop() {
 func (s *Instance) AppendData(data []byte) error {
 	errChan := make(chan error)
 	defer func() {
-		s.logger.Info("finish write: " + string(data))
 		close(errChan)
 	}()
 
@@ -355,7 +351,6 @@ func (s *Instance) AppendData(data []byte) error {
 	}(); err != nil {
 		return err
 	}
-	s.logger.Info("waitting write: " + string(data))
 	return <-errChan
 }
 
@@ -513,7 +508,7 @@ func (s *Instance) Broadcast(name string, abort chan bool, getRequest func(strin
 			go func() {
 				request, err := getRequest(nodeID)
 				if err != nil {
-					s.logger.Error(name, zap.Error(err))
+					s.printLog(s.logger.Error, name, zap.Error(err))
 					return
 				}
 				select {
@@ -523,7 +518,7 @@ func (s *Instance) Broadcast(name string, abort chan bool, getRequest func(strin
 				}
 				response, err := s.proxy.Send(nodeID, request, abort)
 				if err != nil {
-					s.logger.Error(name, zap.Error(err))
+					s.printLog(s.logger.Error, name, zap.Error(err))
 					return
 				}
 				select {
@@ -556,22 +551,16 @@ func (s *Instance) appendData(data []byte) (model.Entry, error) {
 	s.mu.entries = append(s.mu.entries, entry)
 	s.mu.lastID.Inc()
 
-	for i, e := range s.mu.entries {
-		if i == 0 {
-			continue
-		}
-		s.logger.Info("entry", zap.Int64("id", e.Id), zap.Int64("term", e.Term), zap.String("payload", string(e.Payload)))
-	}
-
 	return entry, nil
 }
 
-func (s *Instance) printLog(fn func(msg string, fields ...zap.Field), msg string, err error) {
-	fn(msg, zap.Int64("term", s.mu.term.Load()),
+func (s *Instance) printLog(fn func(msg string, fields ...zap.Field), msg string, fields ...zap.Field) {
+	fields = append(fields, zap.Int64("term", s.mu.term.Load()),
 		zap.Int64("commitID", s.mu.commitID.Load()),
 		zap.Int64("appliedID", s.appliedID.Load()),
 		zap.String("state", s.muState.state.State().String()),
 		zap.Bool("readable", s.readable.Load()),
 		zap.String("leader", s.muLeader.leader),
 		zap.String("vote for", s.mu.voteFor))
+	fn(msg, fields...)
 }

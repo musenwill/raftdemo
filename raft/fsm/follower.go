@@ -59,7 +59,7 @@ func (f *Follower) OnAppendEntries(param model.AppendEntries) model.Response {
 	f.node.SetLeader(param.LeaderID)
 	entry, err := f.node.GetEntry(param.PrevLogIndex)
 	if err != nil {
-		f.logger.Error(err.Error())
+		f.printLog(f.logger.Error, err.Error())
 		return model.Response{Term: f.node.GetTerm(), Success: false}
 	}
 	if entry.Id == param.PrevLogIndex && entry.Term != param.PrevLogTerm {
@@ -67,7 +67,7 @@ func (f *Follower) OnAppendEntries(param model.AppendEntries) model.Response {
 	}
 
 	if err := f.node.AppendEntries(param.Entries); err != nil {
-		f.logger.Error("append entries", zap.Int64("preLogIndex", param.PrevLogIndex), zap.Int64("preLogTerm", param.PrevLogTerm))
+		f.printLog(f.logger.Error, "append entries", zap.Int64("preLogIndex", param.PrevLogIndex), zap.Int64("preLogTerm", param.PrevLogTerm))
 		return model.Response{Term: f.node.GetTerm(), Success: false}
 	}
 
@@ -101,4 +101,12 @@ func (f *Follower) OnTimeout() {
 
 func (f *Follower) State() model.StateRole {
 	return model.StateRole_Follower
+}
+
+func (f *Follower) printLog(fn func(msg string, fields ...zap.Field), msg string, fields ...zap.Field) {
+	fields = append(fields, zap.Int64("term", f.node.GetTerm()),
+		zap.Int64("commitID", f.node.GetCommitIndex()),
+		zap.Int64("appliedID", f.node.GetLastAppliedIndex()),
+		zap.Bool("readable", f.node.Readable()))
+	fn(msg, fields...)
 }

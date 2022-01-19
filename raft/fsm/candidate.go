@@ -23,7 +23,7 @@ func NewCandidate(node raft.NodeInstance, cfg *raft.Config, logger *zap.Logger) 
 		node:    node,
 		cfg:     cfg,
 		leaving: make(chan bool),
-		logger:  logger.With(zap.String("state", "follower")),
+		logger:  logger.With(zap.String("state", "candidate")),
 	}
 }
 
@@ -110,7 +110,7 @@ func (c *Candidate) OnTimeout() {
 			c.node.SwitchStateTo(model.StateRole_Follower)
 		}
 		if response.Success {
-			c.logger.Info("receive vote", zap.String("voter", nodeID))
+			c.printLog(c.logger.Info, "receive vote", zap.String("voter", nodeID))
 			votesC <- struct{}{}
 		}
 	}
@@ -120,4 +120,12 @@ func (c *Candidate) OnTimeout() {
 
 func (c *Candidate) State() model.StateRole {
 	return model.StateRole_Candidate
+}
+
+func (c *Candidate) printLog(fn func(msg string, fields ...zap.Field), msg string, fields ...zap.Field) {
+	fields = append(fields, zap.Int64("term", c.node.GetTerm()),
+		zap.Int64("commitID", c.node.GetCommitIndex()),
+		zap.Int64("appliedID", c.node.GetLastAppliedIndex()),
+		zap.Bool("readable", c.node.Readable()))
+	fn(msg, fields...)
 }

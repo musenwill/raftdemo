@@ -49,37 +49,37 @@ func (c *ChanProxy) Send(nodeID string, request interface{}, abort chan bool) (m
 	case model.AppendEntries:
 		select {
 		case <-abort:
-			return model.Response{}, fmt.Errorf("aborted")
+			return model.Response{}, fmt.Errorf("send append entries to %s aborted", nodeID)
 		case <-timeout.C:
-			return model.Response{}, fmt.Errorf("send append entries timeout")
+			return model.Response{}, fmt.Errorf("send append entries to %s timeout", nodeID)
 		case e.appendEntries.request <- request.(model.AppendEntries):
 		}
 		select {
 		case <-abort:
-			return model.Response{}, fmt.Errorf("aborted")
+			return model.Response{}, fmt.Errorf("receive append entries response from %s aborted", nodeID)
 		case <-timeout.C:
-			return model.Response{}, fmt.Errorf("receive append entries response timeout")
+			return model.Response{}, fmt.Errorf("receive append entries response from %s timeout", nodeID)
 		case response := <-e.appendEntries.response:
 			return response, nil
 		}
 	case model.RequestVote:
 		select {
 		case <-abort:
-			return model.Response{}, fmt.Errorf("aborted")
+			return model.Response{}, fmt.Errorf("send request vote to %s aborted", nodeID)
 		case <-timeout.C:
-			return model.Response{}, fmt.Errorf("send request vote timeout")
+			return model.Response{}, fmt.Errorf("send request vote to %s timeout", nodeID)
 		case e.requestVote.request <- request.(model.RequestVote):
 		}
 		select {
 		case <-abort:
-			return model.Response{}, fmt.Errorf("aborted")
+			return model.Response{}, fmt.Errorf("receive request vote response from %s aborted", nodeID)
 		case <-timeout.C:
-			return model.Response{}, fmt.Errorf("recevie request vote response timeout")
+			return model.Response{}, fmt.Errorf("recevie request vote response from %s timeout", nodeID)
 		case response := <-e.requestVote.response:
 			return response, nil
 		}
 	default:
-		return model.Response{}, fmt.Errorf("unknown request type: %v", t)
+		return model.Response{}, fmt.Errorf("unknown request type to %s: %v", nodeID, t)
 	}
 }
 
