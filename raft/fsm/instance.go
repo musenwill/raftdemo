@@ -409,7 +409,8 @@ func (s *Instance) GetFollowingEntries(index int64) []*model.Entry {
 
 	following := s.mu.entries[index:]
 	for _, e := range following {
-		entries = append(entries, &e)
+		entry := e
+		entries = append(entries, &entry)
 	}
 
 	return entries
