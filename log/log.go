@@ -1,7 +1,6 @@
 package log
 
 import (
-	"errors"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -48,7 +47,7 @@ func ComparableLogLevel(level LogLevel) (zapcore.Level, error) {
 	}
 	r, ok := m[level]
 	if !ok {
-		return -1, errors.New(fmt.Sprintf("unsupported log level %s", level))
+		return -1, fmt.Errorf("unsupported log level %s", level)
 	}
 	return r, nil
 }
@@ -64,14 +63,14 @@ func LogLevel2Str(level zapcore.Level) (LogLevel, error) {
 	}
 	r, ok := m[level]
 	if !ok {
-		return "", errors.New(fmt.Sprintf("unsupported log level %d", level))
+		return "", fmt.Errorf("unsupported log level %d", level)
 	}
 	return r, nil
 }
 
 type Logger struct {
-	*zap.SugaredLogger
-	level *zap.AtomicLevel
+	logger *zap.Logger
+	level  *zap.AtomicLevel
 }
 
 func (p *Logger) SetLevel(level LogLevel) error {
@@ -83,16 +82,13 @@ func (p *Logger) SetLevel(level LogLevel) error {
 	return nil
 }
 
+func (p *Logger) GetLogger() *zap.Logger {
+	return p.logger
+}
+
 func (p *Logger) GetLevel() LogLevel {
 	r, _ := LogLevel2Str(p.level.Level())
 	return r
-}
-
-func (p *Logger) With(args ...interface{}) *Logger {
-	return &Logger{
-		SugaredLogger: p.SugaredLogger.With(args...),
-		level:         p.level,
-	}
 }
 
 func NewLogger(l LogLevel, paths ...string) (*Logger, error) {
@@ -107,27 +103,16 @@ func NewLogger(l LogLevel, paths ...string) (*Logger, error) {
 		return nil, err
 	}
 	return &Logger{
-		SugaredLogger: logger.Sugar(),
-		level:         &logLevel,
+		logger: logger,
+		level:  &logLevel,
 	}, nil
 }
 
 func DefaultZapConfig(level *zap.AtomicLevel, paths ...string) *zap.Config {
 	return &zap.Config{
-		Encoding:    "json",
-		Level:       *level,
-		OutputPaths: paths,
-		EncoderConfig: zapcore.EncoderConfig{
-			MessageKey: "message",
-
-			LevelKey:    "level",
-			EncodeLevel: zapcore.CapitalLevelEncoder,
-
-			TimeKey:    "time",
-			EncodeTime: zapcore.ISO8601TimeEncoder,
-
-			CallerKey:    "caller",
-			EncodeCaller: zapcore.ShortCallerEncoder,
-		},
+		Encoding:      "json",
+		Level:         *level,
+		OutputPaths:   paths,
+		EncoderConfig: zap.NewProductionEncoderConfig(),
 	}
 }

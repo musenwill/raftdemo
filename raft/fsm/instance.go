@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/musenwill/raftdemo/committer"
-	"github.com/musenwill/raftdemo/log"
 	"github.com/musenwill/raftdemo/model"
 	"github.com/musenwill/raftdemo/proxy"
 	"github.com/musenwill/raftdemo/raft"
@@ -57,7 +56,7 @@ type Instance struct {
 	closing           chan bool
 	readable          atomic.Bool
 
-	logger log.Logger
+	logger *zap.Logger
 }
 
 var _ raft.NodeInstance = &Instance{}
@@ -89,7 +88,7 @@ func NewInstance(nodeID string, nodes []string, committer committer.Committer, p
 }
 
 func (s *Instance) Open() error {
-	s.logger = *s.cfg.Logger.With(zap.String("nodeID", s.nodeID))
+	s.logger = s.cfg.Logger.With(zap.String("nodeID", s.nodeID))
 	s.mu.entries = append(s.mu.entries, model.Entry{}) // empty entry in index 0
 	s.muState.state = NewFollower(s, s.cfg, s.logger)
 
@@ -402,7 +401,7 @@ func (s *Instance) GetFollowingEntries(index int64) []*model.Entry {
 
 	entries := make([]*model.Entry, 0)
 
-	if index <= 1 {
+	if index < 1 {
 		index = 1
 	} else if index >= int64(len(s.mu.entries)) {
 		return entries
@@ -513,7 +512,7 @@ func (s *Instance) Broadcast(name string, abort chan bool, getRequest func(strin
 			go func() {
 				request, err := getRequest(nodeID)
 				if err != nil {
-					s.logger.Errorf("%s, %w", name, err)
+					s.logger.Error(name, zap.Error(err))
 					return
 				}
 				select {
@@ -523,7 +522,7 @@ func (s *Instance) Broadcast(name string, abort chan bool, getRequest func(strin
 				}
 				response, err := s.proxy.Send(nodeID, request, abort)
 				if err != nil {
-					s.logger.Errorf("%s, %w", name, err)
+					s.logger.Error(name, zap.Error(err))
 					return
 				}
 				select {
@@ -556,16 +555,22 @@ func (s *Instance) appendData(data []byte) (model.Entry, error) {
 	s.mu.entries = append(s.mu.entries, entry)
 	s.mu.lastID.Inc()
 
+	for i, e := range s.mu.entries {
+		if i == 0 {
+			continue
+		}
+		s.logger.Info("entry", zap.Int64("id", e.Id), zap.Int64("term", e.Term), zap.String("payload", string(e.Payload)))
+	}
+
 	return entry, nil
 }
 
-func (s *Instance) printLog(fn func(args ...interface{}), msg string, err error) {
-	fn(zap.Int64("term", s.mu.term.Load()),
+func (s *Instance) printLog(fn func(msg string, fields ...zap.Field), msg string, err error) {
+	fn(msg, zap.Int64("term", s.mu.term.Load()),
 		zap.Int64("commitID", s.mu.commitID.Load()),
 		zap.Int64("appliedID", s.appliedID.Load()),
 		zap.String("state", s.muState.state.State().String()),
 		zap.Bool("readable", s.readable.Load()),
 		zap.String("leader", s.muLeader.leader),
-		zap.String("vote for", s.mu.voteFor),
-		zap.String("msg", msg), zap.Error(err))
+		zap.String("vote for", s.mu.voteFor))
 }

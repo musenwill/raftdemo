@@ -4,7 +4,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/musenwill/raftdemo/log"
 	"github.com/musenwill/raftdemo/model"
 	"github.com/musenwill/raftdemo/raft"
 	"go.uber.org/zap"
@@ -15,16 +14,16 @@ type Candidate struct {
 	cfg  *raft.Config
 
 	leaving chan bool
-	logger  log.Logger
+	logger  *zap.Logger
 }
 
-func NewCandidate(node raft.NodeInstance, cfg *raft.Config, logger log.Logger) *Candidate {
+func NewCandidate(node raft.NodeInstance, cfg *raft.Config, logger *zap.Logger) *Candidate {
 	rand.Seed(time.Now().UnixNano())
 	return &Candidate{
 		node:    node,
 		cfg:     cfg,
 		leaving: make(chan bool),
-		logger:  *logger.With(zap.String("state", "follower")),
+		logger:  logger.With(zap.String("state", "follower")),
 	}
 }
 

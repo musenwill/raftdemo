@@ -25,7 +25,7 @@ func (m *CfgMgr) Update(level string) *error.HttpError {
 		return error2.ParamError(fmt.Errorf("unsupported log level %s, require %v", level, log.LogLevelList))
 	}
 
-	err := m.Ctx.Cfg.Raft.Logger.SetLevel(logLevel)
+	err := m.Ctx.Cfg.Logger.SetLevel(logLevel)
 	if err != nil {
 		return error.ServerError(err)
 	}

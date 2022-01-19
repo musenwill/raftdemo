@@ -3,7 +3,6 @@ package fsm
 import (
 	"time"
 
-	"github.com/musenwill/raftdemo/log"
 	"github.com/musenwill/raftdemo/model"
 	"github.com/musenwill/raftdemo/raft"
 	"go.uber.org/zap"
@@ -18,15 +17,15 @@ type Leader struct {
 
 	cfg     *raft.Config
 	leaving chan bool
-	logger  log.Logger
+	logger  *zap.Logger
 }
 
-func NewLeader(node raft.NodeInstance, nodes []string, cfg *raft.Config, logger log.Logger) *Leader {
+func NewLeader(node raft.NodeInstance, nodes []string, cfg *raft.Config, logger *zap.Logger) *Leader {
 	leader := &Leader{
 		node:    node,
 		cfg:     cfg,
 		leaving: make(chan bool),
-		logger:  *logger.With(zap.String("state", "leader")),
+		logger:  logger.With(zap.String("state", "leader")),
 
 		nodes:      nodes,
 		nextIndex:  make(map[string]int64),

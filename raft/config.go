@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/musenwill/raftdemo/log"
+	"go.uber.org/zap"
 )
 
 type Config struct {
@@ -19,5 +20,5 @@ type Config struct {
 
 	LogFile  string       `json:"log_file"`
 	LogLevel log.LogLevel `json:"log_level"`
-	Logger   *log.Logger  `json:""`
+	Logger   *zap.Logger  `json:""`
 }

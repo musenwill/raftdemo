@@ -140,7 +140,8 @@ func initConfig(c *cli.Context) (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg.Raft.Logger = logger
+	cfg.Logger = logger
+	cfg.Raft.Logger = logger.GetLogger()
 
 	return cfg, nil
 }

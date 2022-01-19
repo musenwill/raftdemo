@@ -3,7 +3,6 @@ package fsm
 import (
 	"time"
 
-	"github.com/musenwill/raftdemo/log"
 	"github.com/musenwill/raftdemo/model"
 	"github.com/musenwill/raftdemo/raft"
 	"go.uber.org/zap"
@@ -16,16 +15,16 @@ type Follower struct {
 	leaving   chan bool
 	heartBeat chan bool
 
-	logger log.Logger
+	logger *zap.Logger
 }
 
-func NewFollower(node raft.NodeInstance, cfg *raft.Config, logger log.Logger) *Follower {
+func NewFollower(node raft.NodeInstance, cfg *raft.Config, logger *zap.Logger) *Follower {
 	return &Follower{
 		node:      node,
 		cfg:       cfg,
 		leaving:   make(chan bool),
 		heartBeat: make(chan bool),
-		logger:    *logger.With(zap.String("state", "follower")),
+		logger:    logger.With(zap.String("state", "follower")),
 	}
 }
 
@@ -60,7 +59,7 @@ func (f *Follower) OnAppendEntries(param model.AppendEntries) model.Response {
 	f.node.SetLeader(param.LeaderID)
 	entry, err := f.node.GetEntry(param.PrevLogIndex)
 	if err != nil {
-		f.logger.Error(err)
+		f.logger.Error(err.Error())
 		return model.Response{Term: f.node.GetTerm(), Success: false}
 	}
 	if entry.Id == param.PrevLogIndex && entry.Term != param.PrevLogTerm {
