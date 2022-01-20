@@ -23,7 +23,7 @@ func New() *cli.App {
 
 	app.Flags = []cli.Flag{LogLevelFlag, LogFileFlag, HTTPHostFlag, HTTPPortFlag, PProfPortFlag, NodeCountFlag,
 		MaxReplicaBatchFlag, MaxDataSizeFlag, ElectionTimeoutFlag, ReplicateTimeoutFlag, CampaignTimeoutFlag,
-		ElectionRandomFlag}
+		ElectionRandomFlag, RequestTimeoutFlag}
 	app.Action = start
 
 	return app

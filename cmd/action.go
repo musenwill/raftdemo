@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/musenwill/raftdemo/http/server"
 	"github.com/musenwill/raftdemo/log"
@@ -46,11 +45,6 @@ func start(c *cli.Context) error {
 	handleExit(false, instances, srv)
 
 	return nil
-}
-
-func initProxy(nodes []raft.Node, requestTimeout time.Duration) (*proxy.ChanProxy, error) {
-	chanProxy := proxy.NewChanProxy(nodes, requestTimeout)
-	return chanProxy, nil
 }
 
 func startRaft(nodes []raft.Node, proxy proxy.Proxy, cfg *raft.Config) (instances map[string]raft.NodeInstance, err error) {

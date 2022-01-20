@@ -55,8 +55,8 @@ type NodeInstance interface {
 	GetVoteFor() string
 	SetLeader(string)
 	SetVoteFor(string)
-	RestLeader()
-	RestVoteFor()
+	ResetLeader()
+	ResetVoteFor()
 
 	Readable() bool
 	SetReadable(readable bool)

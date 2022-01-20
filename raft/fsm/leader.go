@@ -42,6 +42,8 @@ func NewLeader(node raft.NodeInstance, nodes []string, cfg *raft.Config, logger 
 }
 
 func (s *Leader) Enter() {
+	s.printLog(s.logger.Info, "enter state")
+
 	s.node.SetReadable(false)
 	s.waitApply()
 	s.notifyWinVote()
@@ -61,6 +63,7 @@ func (s *Leader) Enter() {
 }
 
 func (s *Leader) Leave() {
+	s.printLog(s.logger.Info, "leave state")
 	close(s.leaving)
 	s.node.SetReadable(true)
 }
@@ -119,6 +122,7 @@ func (s *Leader) waitApply() {
 }
 
 func (s *Leader) OnTimeout() {
+	s.printLog(s.logger.Info, "start append entries")
 	s.node.Broadcast("append request", s.leaving, s.getRequest, s.handleResponse)
 	s.checkMatchIndex()
 }

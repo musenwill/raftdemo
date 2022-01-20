@@ -18,14 +18,14 @@ var LogLevelFlag = cli.StringFlag{
 
 var LogFileFlag = cli.StringFlag{
 	Name:     "log-file",
-	Usage:    fmt.Sprintf("file to write log"),
+	Usage:    "file to write log",
 	Required: false,
 	Value:    "raft.log",
 }
 
 var HTTPHostFlag = cli.StringFlag{
 	Name:     "host",
-	Usage:    fmt.Sprintf("http server host"),
+	Usage:    "http server host",
 	Required: false,
 	Value:    "localhost",
 }
@@ -97,5 +97,5 @@ var RequestTimeoutFlag = cli.DurationFlag{
 	Name:     "request-timeout",
 	Usage:    "rpc request timeout in milliseconds",
 	Required: false,
-	Value:    2000 * time.Millisecond,
+	Value:    2 * time.Second,
 }

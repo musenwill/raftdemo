@@ -238,7 +238,6 @@ func (s *Instance) GetCommitIndex() int64 {
 
 func (s *Instance) CASCommitID(commitID int64) int {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	lastLog := s.mu.lastID.Load()
 	if commitID > lastLog {
@@ -247,11 +246,15 @@ func (s *Instance) CASCommitID(commitID int64) int {
 
 	if commitID > s.mu.commitID.Load() {
 		s.mu.commitID.Store(commitID)
+		s.mu.Unlock()
+
 		s.commitIDUpdateCh <- commitID
 		return 1
 	} else if commitID == s.mu.commitID.Load() {
+		s.mu.Unlock()
 		return 0
 	} else {
+		s.mu.Unlock()
 		return -1
 	}
 }
@@ -474,14 +477,14 @@ func (s *Instance) SetVoteFor(voteFor string) {
 	s.mu.voteFor = voteFor
 }
 
-func (s *Instance) RestLeader() {
+func (s *Instance) ResetLeader() {
 	s.muLeader.Lock()
 	defer s.muLeader.Unlock()
 
 	s.muLeader.leader = ""
 }
 
-func (s *Instance) RestVoteFor() {
+func (s *Instance) ResetVoteFor() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

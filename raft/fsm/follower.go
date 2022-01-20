@@ -29,6 +29,8 @@ func NewFollower(node raft.NodeInstance, cfg *raft.Config, logger *zap.Logger) *
 }
 
 func (f *Follower) Enter() {
+	f.printLog(f.logger.Info, "enter state")
+
 	go func() {
 		ticker := time.NewTicker(f.cfg.ElectionTimeout)
 		for {
@@ -45,6 +47,7 @@ func (f *Follower) Enter() {
 }
 
 func (f *Follower) Leave() {
+	f.printLog(f.logger.Info, "leave state")
 	close(f.leaving)
 	close(f.heartBeat)
 }
@@ -54,7 +57,10 @@ func (f *Follower) OnAppendEntries(param model.AppendEntries) model.Response {
 		return model.Response{Term: f.node.GetTerm(), Success: false}
 	}
 
-	f.heartBeat <- true
+	select {
+	case f.heartBeat <- true:
+	default:
+	}
 
 	f.node.SetLeader(param.LeaderID)
 	entry, err := f.node.GetEntry(param.PrevLogIndex)
@@ -79,7 +85,10 @@ func (f *Follower) OnRequestVote(param model.RequestVote) model.Response {
 		return model.Response{Term: f.node.GetTerm(), Success: false}
 	}
 
-	f.heartBeat <- true
+	select {
+	case f.heartBeat <- true:
+	default:
+	}
 
 	if f.node.GetVoteFor() != "" {
 		return model.Response{Term: f.node.GetTerm(), Success: false}

@@ -28,6 +28,7 @@ func NewCandidate(node raft.NodeInstance, cfg *raft.Config, logger *zap.Logger) 
 }
 
 func (c *Candidate) Enter() {
+	c.printLog(c.logger.Info, "enter state")
 	c.node.SetVoteFor(c.node.GetNodeID())
 
 	go func() {
@@ -47,6 +48,7 @@ func (c *Candidate) Enter() {
 }
 
 func (c *Candidate) Leave() {
+	c.printLog(c.logger.Info, "leave state")
 	close(c.leaving)
 }
 
@@ -71,6 +73,8 @@ func (c *Candidate) OnRequestVote(param model.RequestVote) model.Response {
 func (c *Candidate) OnTimeout() {
 	c.node.IncreaseTerm()
 	votesC := make(chan struct{})
+
+	c.printLog(c.logger.Info, "start campaign")
 
 	go func() {
 		count := 0
