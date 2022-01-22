@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/musenwill/raftdemo/committer"
+	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/model"
 	"github.com/musenwill/raftdemo/proxy"
 	"github.com/musenwill/raftdemo/raft"
@@ -21,7 +22,7 @@ type Instance struct {
 	nodes  []string
 
 	mu struct {
-		sync.RWMutex
+		mu       *common.RWMutex
 		term     atomic.Int64
 		commitID atomic.Int64
 		lastID   atomic.Int64
@@ -32,17 +33,17 @@ type Instance struct {
 	appliedID atomic.Int64
 
 	muLeader struct {
-		sync.RWMutex
+		mu     *common.RWMutex
 		leader string
 	}
 
 	muState struct {
-		sync.RWMutex
+		mu    *common.RWMutex
 		state raft.State
 	}
 
 	muRequests struct {
-		sync.Mutex
+		mu             *common.Mutex
 		requestWaiters map[int64]chan error
 	}
 
@@ -91,6 +92,11 @@ func (s *Instance) Open() error {
 	s.logger = s.cfg.Logger.With(zap.String("nodeID", s.nodeID))
 	s.mu.entries = append(s.mu.entries, model.Entry{}) // empty entry in index 0
 	s.muState.state = NewFollower(s, s.cfg, s.logger)
+
+	s.mu.mu = common.NewRWMutex(s.logger.With(zap.String("mutex", "mu")))
+	s.muLeader.mu = common.NewRWMutex(s.logger.With(zap.String("mutex", "muleader")))
+	s.muState.mu = common.NewRWMutex(s.logger.With(zap.String("mutex", "mustate")))
+	s.muRequests.mu = common.NewMutex(s.logger.With(zap.String("mutex", "murequests")))
 
 	s.muState.state.Enter()
 	s.receiveJob()
@@ -150,9 +156,9 @@ func (s *Instance) commitJob() {
 						err := s.committer.Commit(entry.Payload)
 						if errCh, ok := s.muRequests.requestWaiters[appliedID+1]; ok {
 							errCh <- err
-							s.muRequests.Lock()
+							s.muRequests.mu.Lock()
 							delete(s.muRequests.requestWaiters, appliedID+1)
-							s.muRequests.Unlock()
+							s.muRequests.mu.Unlock()
 						}
 
 						if err != nil {
@@ -186,17 +192,17 @@ func (s *Instance) handleRequest(request interface{}) model.Response {
 }
 
 func (s *Instance) OnAppendEntries(request model.AppendEntries) model.Response {
-	s.muState.RLock()
+	s.muState.mu.RLock()
 	state := s.muState.state
-	s.muState.RUnlock()
+	s.muState.mu.RUnlock()
 
 	return state.OnAppendEntries(request)
 }
 
 func (s *Instance) OnRequestVote(request model.RequestVote) model.Response {
-	s.muState.RLock()
+	s.muState.mu.RLock()
 	state := s.muState.state
-	s.muState.RUnlock()
+	s.muState.mu.RUnlock()
 
 	return state.OnRequestVote(request)
 }
@@ -210,8 +216,8 @@ func (s *Instance) GetTerm() int64 {
 }
 
 func (s *Instance) CASTerm(term int64) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.mu.Lock("CASTerm")
+	defer s.mu.mu.Unlock()
 
 	if term > s.mu.term.Load() {
 		s.mu.term.Store(term)
@@ -225,8 +231,8 @@ func (s *Instance) CASTerm(term int64) int {
 }
 
 func (s *Instance) IncreaseTerm() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.mu.Lock("IncreaseTerm")
+	defer s.mu.mu.Unlock()
 
 	s.mu.term.Inc()
 	s.mu.voteFor = ""
@@ -237,7 +243,7 @@ func (s *Instance) GetCommitIndex() int64 {
 }
 
 func (s *Instance) CASCommitID(commitID int64) int {
-	s.mu.Lock()
+	s.mu.mu.Lock("CASCommitID")
 
 	lastLog := s.mu.lastID.Load()
 	if commitID > lastLog {
@@ -246,15 +252,15 @@ func (s *Instance) CASCommitID(commitID int64) int {
 
 	if commitID > s.mu.commitID.Load() {
 		s.mu.commitID.Store(commitID)
-		s.mu.Unlock()
+		s.mu.mu.Unlock()
 
 		s.commitIDUpdateCh <- commitID
 		return 1
 	} else if commitID == s.mu.commitID.Load() {
-		s.mu.Unlock()
+		s.mu.mu.Unlock()
 		return 0
 	} else {
-		s.mu.Unlock()
+		s.mu.mu.Unlock()
 		return -1
 	}
 }
@@ -264,15 +270,15 @@ func (s *Instance) GetLastAppliedIndex() int64 {
 }
 
 func (s *Instance) GetState() model.StateRole {
-	s.muState.RLock()
-	defer s.muState.RUnlock()
+	s.muState.mu.RLock()
+	defer s.muState.mu.RUnlock()
 
 	return s.muState.state.State()
 }
 
 func (s *Instance) SwitchStateTo(state model.StateRole) error {
-	s.muState.Lock()
-	defer s.muState.Unlock()
+	s.muState.mu.Lock("SwitchStateTo")
+	defer s.muState.mu.Unlock()
 
 	select {
 	case <-s.closing:
@@ -314,8 +320,8 @@ func (s *Instance) AppendNop() {
 		Payload: nil,
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.mu.Lock("AppendNop")
+	defer s.mu.mu.Unlock()
 
 	s.mu.entries = append(s.mu.entries, entry)
 	s.mu.lastID.Inc()
@@ -334,20 +340,20 @@ func (s *Instance) AppendData(data []byte) error {
 		default:
 		}
 
-		s.muRequests.Lock()
-		defer s.muRequests.Unlock()
+		s.muRequests.mu.Lock()
+		defer s.muRequests.mu.Unlock()
 
 		if len(s.muRequests.requestWaiters) >= MaxRequests {
 			return fmt.Errorf("pending requests exceeded")
 		}
 
-		s.mu.Lock()
+		s.mu.mu.Lock("AppendData")
 		entry, err := s.appendData(data)
 		if err != nil {
-			s.mu.Unlock()
+			s.mu.mu.Unlock()
 			return err
 		}
-		s.mu.Unlock()
+		s.mu.mu.Unlock()
 
 		s.muRequests.requestWaiters[entry.Id] = errChan
 		return nil
@@ -368,8 +374,8 @@ func (s *Instance) AppendEntries(entries []*model.Entry) error {
 	default:
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.mu.Lock("AppendEntries")
+	defer s.mu.mu.Unlock()
 
 	index := len(s.mu.entries) - 1
 	for index >= 0 {
@@ -394,8 +400,8 @@ func (s *Instance) AppendEntries(entries []*model.Entry) error {
 }
 
 func (s *Instance) GetFollowingEntries(index int64) []*model.Entry {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.mu.RLock()
+	defer s.mu.mu.RUnlock()
 
 	entries := make([]*model.Entry, 0)
 
@@ -415,8 +421,8 @@ func (s *Instance) GetFollowingEntries(index int64) []*model.Entry {
 }
 
 func (s *Instance) GetEntry(index int64) (model.Entry, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.mu.RLock()
+	defer s.mu.mu.RUnlock()
 
 	if index >= int64(len(s.mu.entries)) {
 		return model.Entry{}, fmt.Errorf("get entry index out of range")
@@ -426,8 +432,8 @@ func (s *Instance) GetEntry(index int64) (model.Entry, error) {
 }
 
 func (s *Instance) GetLastEntry() model.Entry {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.mu.RLock()
+	defer s.mu.mu.RUnlock()
 
 	return s.getLastEntry()
 }
@@ -438,9 +444,9 @@ func (s *Instance) WaitApply(abort chan bool) {
 		case <-abort:
 			return
 		case applied := <-s.appliedCIUpdateCh:
-			s.mu.RLock()
+			s.mu.mu.RLock()
 			entry := s.mu.entries[applied]
-			s.mu.RUnlock()
+			s.mu.mu.RUnlock()
 
 			if entry.Term == s.mu.term.Load() {
 				return
@@ -450,43 +456,43 @@ func (s *Instance) WaitApply(abort chan bool) {
 }
 
 func (s *Instance) GetLeader() string {
-	s.muLeader.RLock()
-	defer s.muLeader.RUnlock()
+	s.muLeader.mu.RLock()
+	defer s.muLeader.mu.RUnlock()
 
 	return s.muLeader.leader
 }
 
 func (s *Instance) SetLeader(leader string) {
-	s.muLeader.Lock()
-	defer s.muLeader.Unlock()
+	s.muLeader.mu.Lock("SetLeader")
+	defer s.muLeader.mu.Unlock()
 
 	s.muLeader.leader = leader
 }
 
 func (s *Instance) GetVoteFor() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.mu.RLock()
+	defer s.mu.mu.RUnlock()
 
 	return s.mu.voteFor
 }
 
 func (s *Instance) SetVoteFor(voteFor string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.mu.Lock("SetVoteFor")
+	defer s.mu.mu.Unlock()
 
 	s.mu.voteFor = voteFor
 }
 
 func (s *Instance) ResetLeader() {
-	s.muLeader.Lock()
-	defer s.muLeader.Unlock()
+	s.muLeader.mu.Lock("ResetLeader")
+	defer s.muLeader.mu.Unlock()
 
 	s.muLeader.leader = ""
 }
 
 func (s *Instance) ResetVoteFor() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.mu.Lock("ResetVoteFor")
+	defer s.mu.mu.Unlock()
 
 	s.mu.voteFor = ""
 }
