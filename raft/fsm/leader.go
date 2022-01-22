@@ -3,6 +3,7 @@ package fsm
 import (
 	"time"
 
+	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/model"
 	"github.com/musenwill/raftdemo/raft"
 	"go.uber.org/zap"
@@ -11,9 +12,15 @@ import (
 type Leader struct {
 	node raft.NodeInstance
 
-	nextIndex  map[string]int64
-	matchIndex map[string]int64
-	nodes      []string
+	muNextIndex struct {
+		mu *common.RWMutex
+		m  map[string]int64
+	}
+	muMatchIndex struct {
+		mu *common.RWMutex
+		m  map[string]int64
+	}
+	nodes []string
 
 	cfg     *raft.Config
 	leaving chan bool
@@ -27,15 +34,18 @@ func NewLeader(node raft.NodeInstance, nodes []string, cfg *raft.Config, logger 
 		leaving: make(chan bool),
 		logger:  logger.With(zap.String("state", "leader")),
 
-		nodes:      nodes,
-		nextIndex:  make(map[string]int64),
-		matchIndex: make(map[string]int64),
+		nodes: nodes,
 	}
+	leader.muNextIndex.mu = common.NewRWMutex(leader.logger.With(zap.String("mutex", "munextindex")))
+	leader.muNextIndex.m = make(map[string]int64)
+
+	leader.muMatchIndex.mu = common.NewRWMutex(leader.logger.With(zap.String("mutex", "mumatchindex")))
+	leader.muMatchIndex.m = make(map[string]int64)
 
 	lastLogIndex := node.GetLastEntry().Id
 	for _, n := range nodes {
-		leader.nextIndex[n] = lastLogIndex + 1
-		leader.matchIndex[n] = 0
+		leader.muNextIndex.m[n] = lastLogIndex + 1
+		leader.muMatchIndex.m[n] = 0
 	}
 
 	return leader
@@ -126,11 +136,14 @@ func (s *Leader) waitApply() {
 func (s *Leader) OnTimeout() {
 	s.printLog(s.logger.Debug, "start append entries")
 	s.node.Broadcast("append request", s.leaving, s.getRequest, s.handleResponse)
-	s.checkMatchIndex()
+	s.CheckMatchIndex()
 }
 
 func (s *Leader) getRequest(nodeID string) (interface{}, error) {
-	nextIndex := s.nextIndex[nodeID]
+	s.muNextIndex.mu.RLock()
+	nextIndex := s.muNextIndex.m[nodeID]
+	s.muNextIndex.mu.RUnlock()
+
 	if nextIndex <= 0 {
 		nextIndex = 1
 	}
@@ -158,22 +171,33 @@ func (s *Leader) handleResponse(nodeID string, response model.Response) {
 
 	lastEntry := s.node.GetLastEntry()
 
-	nextIndex := s.nextIndex[nodeID]
+	s.muNextIndex.mu.RLock()
+	nextIndex := s.muNextIndex.m[nodeID]
+	s.muNextIndex.mu.RUnlock()
+
 	if !response.Success {
 		nextIndex--
 		if nextIndex <= 0 {
 			nextIndex = 1
 		}
-		s.nextIndex[nodeID] = nextIndex
+		s.muNextIndex.mu.Lock("handleResponse failed")
+		s.muNextIndex.m[nodeID] = nextIndex
+		s.muNextIndex.mu.Unlock()
 		s.printLog(s.logger.Debug, "failed replica log", zap.String("peer", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
 	} else {
-		s.nextIndex[nodeID] = lastEntry.Id + 1
-		s.matchIndex[nodeID] = lastEntry.Id
+		s.muNextIndex.mu.Lock("handleResponse success")
+		s.muNextIndex.m[nodeID] = lastEntry.Id + 1
+		s.muNextIndex.mu.Unlock()
+
+		s.muMatchIndex.mu.Lock("handleResponse success")
+		s.muMatchIndex.m[nodeID] = lastEntry.Id
+		s.muMatchIndex.mu.Unlock()
+
 		s.printLog(s.logger.Debug, "success replica log", zap.String("peer", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
 	}
 }
 
-func (s *Leader) checkMatchIndex() {
+func (s *Leader) CheckMatchIndex() {
 	latestIndexes := make([]int64, 0)
 
 	commitIndex := s.node.GetCommitIndex()
@@ -183,11 +207,13 @@ func (s *Leader) checkMatchIndex() {
 		latestIndexes = append(latestIndexes, lastIndex)
 	}
 
-	for _, m := range s.matchIndex {
+	s.muMatchIndex.mu.RLock()
+	for _, m := range s.muMatchIndex.m {
 		if m > commitIndex {
 			latestIndexes = append(latestIndexes, m)
 		}
 	}
+	s.muMatchIndex.mu.RUnlock()
 
 	if len(latestIndexes) > (len(s.nodes)+1)/2 {
 		min := latestIndexes[0]
