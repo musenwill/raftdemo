@@ -77,6 +77,8 @@ func (f *Follower) OnAppendEntries(param model.AppendEntries) model.Response {
 		return model.Response{Term: f.node.GetTerm(), Success: false}
 	}
 
+	f.node.CASCommitID(param.LeaderCommit)
+
 	return model.Response{Term: f.node.GetTerm(), Success: true}
 }
 

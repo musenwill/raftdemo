@@ -44,6 +44,8 @@ func NewLeader(node raft.NodeInstance, nodes []string, cfg *raft.Config, logger 
 func (s *Leader) Enter() {
 	s.printLog(s.logger.Info, "enter state")
 
+	s.node.ResetLeader()
+	s.node.ResetVoteFor()
 	s.node.SetReadable(false)
 	s.waitApply()
 	s.notifyWinVote()
@@ -122,7 +124,7 @@ func (s *Leader) waitApply() {
 }
 
 func (s *Leader) OnTimeout() {
-	s.printLog(s.logger.Info, "start append entries")
+	s.printLog(s.logger.Debug, "start append entries")
 	s.node.Broadcast("append request", s.leaving, s.getRequest, s.handleResponse)
 	s.checkMatchIndex()
 }
@@ -163,15 +165,12 @@ func (s *Leader) handleResponse(nodeID string, response model.Response) {
 			nextIndex = 1
 		}
 		s.nextIndex[nodeID] = nextIndex
-		s.printLog(s.logger.Info, "failed replica log", zap.String("peer", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
+		s.printLog(s.logger.Debug, "failed replica log", zap.String("peer", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
 	} else {
-		s.updateMatchIndex(nodeID)
-		s.printLog(s.logger.Info, "success replica log", zap.String("peer", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
+		s.nextIndex[nodeID] = lastEntry.Id + 1
+		s.matchIndex[nodeID] = lastEntry.Id
+		s.printLog(s.logger.Debug, "success replica log", zap.String("peer", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
 	}
-}
-
-func (s *Leader) updateMatchIndex(nodeID string) {
-	s.matchIndex[nodeID] = s.nextIndex[nodeID] - 1
 }
 
 func (s *Leader) checkMatchIndex() {

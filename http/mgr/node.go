@@ -50,6 +50,7 @@ func (m *NodeMgr) WrapNode(node raft.NodeInstance) types.Node {
 		LastLogTerm:   lastEntry.Term,
 		Leader:        node.GetLeader(),
 		VoteFor:       node.GetVoteFor(),
+		Readable:      node.Readable(),
 	}
 }
 

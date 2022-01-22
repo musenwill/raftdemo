@@ -2,11 +2,13 @@ package model
 
 import (
 	fmt "fmt"
+	"strings"
 
 	"github.com/musenwill/raftdemo/common"
 )
 
 func MapStateRole(state string) (StateRole, error) {
+	state = strings.ToLower(state)
 	s, ok := StateRole_value[state]
 	if !ok {
 		return StateRole_None, fmt.Errorf("unknown state %s", state)

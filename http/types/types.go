@@ -27,18 +27,19 @@ type Node struct {
 	LastLogID     int64  `json:"last_log_id"`
 	LastLogTerm   int64  `json:"last_log_term"`
 
-	Leader  string `json:"leader"`
-	VoteFor string `json:"vote_for"`
+	Leader   string `json:"leader"`
+	VoteFor  string `json:"vote_for"`
+	Readable bool   `json:"readable"`
 }
 
 func (n *Node) Header() []string {
-	return []string{"id", "term", "state", "commitID", "lastAppliedID", "lastLogID", "lastLogTerm", "leader", "voteFor"}
+	return []string{"id", "term", "state", "commitID", "lastAppliedID", "lastLogID", "lastLogTerm", "leader", "voteFor", "readable"}
 }
 
 func (n *Node) Row() []string {
 	return []string{n.ID, fmt.Sprintf("%d", n.Term), n.State, fmt.Sprintf("%d", n.CommitID),
 		fmt.Sprintf("%d", n.LastAppliedID), fmt.Sprintf("%d", n.LastLogID), fmt.Sprintf("%d",
-			n.LastLogTerm), n.Leader, n.VoteFor}
+			n.LastLogTerm), n.Leader, n.VoteFor, fmt.Sprintf("%v", n.Readable)}
 }
 
 func (n *Node) Form() *common.Form {

@@ -66,18 +66,18 @@ const (
 )
 
 var StateRole_name = map[int32]string{
-	0: "None",
-	1: "Dummy",
-	2: "Follower",
-	3: "Candidate",
-	4: "Leader",
+	0: "none",
+	1: "dummy",
+	2: "follower",
+	3: "candidate",
+	4: "leader",
 }
 var StateRole_value = map[string]int32{
-	"None":      0,
-	"Dummy":     1,
-	"Follower":  2,
-	"Candidate": 3,
-	"Leader":    4,
+	"none":      0,
+	"dummy":     1,
+	"follower":  2,
+	"candidate": 3,
+	"leader":    4,
 }
 
 func (x StateRole) String() string {

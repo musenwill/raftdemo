@@ -8,11 +8,11 @@ enum EntryType {
 }
 
 enum StateRole {
-    None = 0;
-    Dummy = 1;
-    Follower = 2;
-    Candidate = 3;
-    Leader = 4;
+    none = 0;
+    dummy = 1;
+    follower = 2;
+    candidate = 3;
+    leader = 4;
 }
 
 message Entry {

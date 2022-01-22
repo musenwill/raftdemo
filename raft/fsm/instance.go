@@ -82,6 +82,7 @@ func NewInstance(nodeID string, nodes []string, committer committer.Committer, p
 		closing:           make(chan bool),
 	}
 
+	in.readable.Store(true)
 	in.mu.entries = make([]model.Entry, 0)
 	in.muRequests.requestWaiters = make(map[int64]chan error)
 
@@ -387,6 +388,7 @@ func (s *Instance) AppendEntries(entries []*model.Entry) error {
 			index--
 			continue
 		}
+		break
 	}
 	s.mu.entries = s.mu.entries[:index+1]
 
