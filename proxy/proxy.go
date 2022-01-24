@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/musenwill/raftdemo/model"
@@ -9,8 +10,10 @@ import (
 )
 
 type ChanProxy struct {
-	router  map[string]endpoint
-	timeout time.Duration
+	router     map[string]endpoint
+	timeout    time.Duration
+	brokenPipe map[string]string
+	sync.RWMutex
 }
 
 func NewChanProxy(nodes []raft.Node, timeout time.Duration) *ChanProxy {
@@ -38,10 +41,12 @@ func NewChanProxy(nodes []raft.Node, timeout time.Duration) *ChanProxy {
 	return proxy
 }
 
-func (c *ChanProxy) Send(nodeID string, request interface{}, abort chan bool) (model.Response, error) {
-	e, ok := c.router[nodeID]
+func (c *ChanProxy) BrokenPipes() [][]string
+
+func (c *ChanProxy) Send(from, to string, request interface{}, abort chan bool) (model.Response, error) {
+	e, ok := c.router[to]
 	if !ok {
-		return model.Response{}, fmt.Errorf("node with id %v not exist", nodeID)
+		return model.Response{}, fmt.Errorf("node with id %v not exist", to)
 	}
 	timeout := time.NewTimer(c.timeout)
 
@@ -49,37 +54,37 @@ func (c *ChanProxy) Send(nodeID string, request interface{}, abort chan bool) (m
 	case model.AppendEntries:
 		select {
 		case <-abort:
-			return model.Response{}, fmt.Errorf("send append entries to %s aborted", nodeID)
+			return model.Response{}, fmt.Errorf("send append entries to %s aborted", to)
 		case <-timeout.C:
-			return model.Response{}, fmt.Errorf("send append entries to %s timeout", nodeID)
+			return model.Response{}, fmt.Errorf("send append entries to %s timeout", to)
 		case e.appendEntries.request <- request.(model.AppendEntries):
 		}
 		select {
 		case <-abort:
-			return model.Response{}, fmt.Errorf("receive append entries response from %s aborted", nodeID)
+			return model.Response{}, fmt.Errorf("receive append entries response from %s aborted", to)
 		case <-timeout.C:
-			return model.Response{}, fmt.Errorf("receive append entries response from %s timeout", nodeID)
+			return model.Response{}, fmt.Errorf("receive append entries response from %s timeout", to)
 		case response := <-e.appendEntries.response:
 			return response, nil
 		}
 	case model.RequestVote:
 		select {
 		case <-abort:
-			return model.Response{}, fmt.Errorf("send request vote to %s aborted", nodeID)
+			return model.Response{}, fmt.Errorf("send request vote to %s aborted", to)
 		case <-timeout.C:
-			return model.Response{}, fmt.Errorf("send request vote to %s timeout", nodeID)
+			return model.Response{}, fmt.Errorf("send request vote to %s timeout", to)
 		case e.requestVote.request <- request.(model.RequestVote):
 		}
 		select {
 		case <-abort:
-			return model.Response{}, fmt.Errorf("receive request vote response from %s aborted", nodeID)
+			return model.Response{}, fmt.Errorf("receive request vote response from %s aborted", to)
 		case <-timeout.C:
-			return model.Response{}, fmt.Errorf("recevie request vote response from %s timeout", nodeID)
+			return model.Response{}, fmt.Errorf("recevie request vote response from %s timeout", to)
 		case response := <-e.requestVote.response:
 			return response, nil
 		}
 	default:
-		return model.Response{}, fmt.Errorf("unknown request type to %s: %v", nodeID, t)
+		return model.Response{}, fmt.Errorf("unknown request type to %s: %v", to, t)
 	}
 }
 

@@ -527,7 +527,7 @@ func (s *Instance) Broadcast(name string, abort chan bool, getRequest func(strin
 					return
 				default:
 				}
-				response, err := s.proxy.Send(nodeID, request, abort)
+				response, err := s.proxy.Send(s.nodeID, nodeID, request, abort)
 				if err != nil {
 					s.printLog(s.logger.Error, name, zap.Error(err))
 					return
