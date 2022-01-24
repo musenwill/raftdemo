@@ -1,9 +1,9 @@
 package fsm
 
 import (
+	"sync"
 	"time"
 
-	"github.com/musenwill/raftdemo/common"
 	"github.com/musenwill/raftdemo/model"
 	"github.com/musenwill/raftdemo/raft"
 	"go.uber.org/zap"
@@ -13,12 +13,12 @@ type Leader struct {
 	node raft.NodeInstance
 
 	muNextIndex struct {
-		mu *common.RWMutex
-		m  map[string]int64
+		sync.RWMutex
+		m map[string]int64
 	}
 	muMatchIndex struct {
-		mu *common.RWMutex
-		m  map[string]int64
+		sync.RWMutex
+		m map[string]int64
 	}
 	nodes []string
 
@@ -36,10 +36,7 @@ func NewLeader(node raft.NodeInstance, nodes []string, cfg *raft.Config, logger 
 
 		nodes: nodes,
 	}
-	leader.muNextIndex.mu = common.NewRWMutex(leader.logger.With(zap.String("mutex", "munextindex")))
 	leader.muNextIndex.m = make(map[string]int64)
-
-	leader.muMatchIndex.mu = common.NewRWMutex(leader.logger.With(zap.String("mutex", "mumatchindex")))
 	leader.muMatchIndex.m = make(map[string]int64)
 
 	lastLogIndex := node.GetLastEntry().Id
@@ -140,9 +137,9 @@ func (s *Leader) OnTimeout() {
 }
 
 func (s *Leader) getRequest(nodeID string) (interface{}, error) {
-	s.muNextIndex.mu.RLock()
+	s.muNextIndex.RLock()
 	nextIndex := s.muNextIndex.m[nodeID]
-	s.muNextIndex.mu.RUnlock()
+	s.muNextIndex.RUnlock()
 
 	if nextIndex <= 0 {
 		nextIndex = 1
@@ -171,27 +168,27 @@ func (s *Leader) handleResponse(nodeID string, response model.Response) {
 
 	lastEntry := s.node.GetLastEntry()
 
-	s.muNextIndex.mu.RLock()
+	s.muNextIndex.RLock()
 	nextIndex := s.muNextIndex.m[nodeID]
-	s.muNextIndex.mu.RUnlock()
+	s.muNextIndex.RUnlock()
 
 	if !response.Success {
 		nextIndex--
 		if nextIndex <= 0 {
 			nextIndex = 1
 		}
-		s.muNextIndex.mu.Lock("handleResponse failed")
+		s.muNextIndex.Lock()
 		s.muNextIndex.m[nodeID] = nextIndex
-		s.muNextIndex.mu.Unlock()
+		s.muNextIndex.Unlock()
 		s.printLog(s.logger.Debug, "failed replica log", zap.String("peer", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
 	} else {
-		s.muNextIndex.mu.Lock("handleResponse success")
+		s.muNextIndex.Lock()
 		s.muNextIndex.m[nodeID] = lastEntry.Id + 1
-		s.muNextIndex.mu.Unlock()
+		s.muNextIndex.Unlock()
 
-		s.muMatchIndex.mu.Lock("handleResponse success")
+		s.muMatchIndex.Lock()
 		s.muMatchIndex.m[nodeID] = lastEntry.Id
-		s.muMatchIndex.mu.Unlock()
+		s.muMatchIndex.Unlock()
 
 		s.printLog(s.logger.Debug, "success replica log", zap.String("peer", nodeID), zap.Int64("lag", lastEntry.Id-nextIndex))
 	}
@@ -207,13 +204,13 @@ func (s *Leader) CheckMatchIndex() {
 		latestIndexes = append(latestIndexes, lastIndex)
 	}
 
-	s.muMatchIndex.mu.RLock()
+	s.muMatchIndex.RLock()
 	for _, m := range s.muMatchIndex.m {
 		if m > commitIndex {
 			latestIndexes = append(latestIndexes, m)
 		}
 	}
-	s.muMatchIndex.mu.RUnlock()
+	s.muMatchIndex.RUnlock()
 
 	if len(latestIndexes) > (len(s.nodes)+1)/2 {
 		min := latestIndexes[0]
