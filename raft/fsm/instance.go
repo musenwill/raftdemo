@@ -519,7 +519,11 @@ func (s *Instance) Broadcast(name string, abort chan bool, getRequest func(strin
 			go func() {
 				request, err := getRequest(nodeID)
 				if err != nil {
-					s.printLog(s.logger.Error, name, zap.Error(err))
+					if _, ok := err.(*proxy.ErrProxyAbort); ok {
+						s.printLog(s.logger.Info, name, zap.Error(err))
+					} else {
+						s.printLog(s.logger.Error, name, zap.Error(err))
+					}
 					return
 				}
 				select {
@@ -529,7 +533,11 @@ func (s *Instance) Broadcast(name string, abort chan bool, getRequest func(strin
 				}
 				response, err := s.proxy.Send(s.nodeID, nodeID, request, abort)
 				if err != nil {
-					s.printLog(s.logger.Error, name, zap.Error(err))
+					if _, ok := err.(*proxy.ErrProxyAbort); ok {
+						s.printLog(s.logger.Info, name, zap.Error(err))
+					} else {
+						s.printLog(s.logger.Error, name, zap.Error(err))
+					}
 					return
 				}
 				select {
