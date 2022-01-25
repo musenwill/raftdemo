@@ -87,10 +87,10 @@ func TestParseShowNodes(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, &shell.ShowNodesStatement{NodeID: "node01"}, stmt)
 
-	stmt, err = shell.ParseStatement("show nodes where node = ")
+	_, err = shell.ParseStatement("show nodes where node = ")
 	require.Equal(t, "expect [LEADER STRING] at 22, got EOF", err.Error())
 
-	stmt, err = shell.ParseStatement(`show nodes where node = ""`)
+	_, err = shell.ParseStatement(`show nodes where node = ""`)
 	require.Equal(t, "unexpected empty string at 24", err.Error())
 
 	stmt, err = shell.ParseStatement(`show nodes where node = "show"`)

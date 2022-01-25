@@ -34,6 +34,8 @@ func (a *App) Open() error {
 	a.execMap["SET LOG"] = a.SetLogLevel
 	a.execMap["SHOW LOGS"] = a.ShowLogs
 	a.execMap["WRITE LOG"] = a.WriteLog
+	a.execMap["SHOW PIPES"] = a.ShowPipes
+	a.execMap["SET PIPE"] = a.SetPipe
 
 	return nil
 }
@@ -341,6 +343,64 @@ func (a *App) WriteLog(stmt Statement) error {
 	defer resp.Body.Close()
 
 	return a.handleError(resp)
+}
+
+func (a *App) ShowPipes(stmt Statement) error {
+	u := a.url
+	u.Path = path.Join(u.Path, "proxy")
+
+	resp, err := a.httpClient.Get(u.String())
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if err := a.handleError(resp); err != nil {
+		return err
+	}
+
+	dec := json.NewDecoder(resp.Body)
+	dec.UseNumber()
+
+	pipeList := types.ListPipesResponse{}
+	if err := dec.Decode(&pipeList); err != nil {
+		return err
+	}
+
+	form := common.NewForm()
+	form.SetTags([]common.Tag{{K: "name", V: "entries"}, {K: "total", V: fmt.Sprintf("%d", pipeList.Total)}})
+	form.SetHeader((&model.Pipe{}).Header())
+	for _, e := range pipeList.Entries {
+		form.AddRow(e.Row())
+	}
+	fmt.Println(form)
+
+	return nil
+}
+
+func (a *App) SetPipe(stmt Statement) error {
+	setPipeStmt := stmt.(*SetPipeStatement)
+
+	u := a.url
+	u.Path = path.Join(u.Path, "proxy")
+
+	state, err := model.MapStatePipe(setPipeStmt.State)
+	if err != nil {
+		return err
+	}
+
+	param := types.UpdatePipesRequest{
+		Entries: []model.Pipe{{From: setPipeStmt.From, To: setPipeStmt.To, State: state}},
+	}
+
+	resp, err := a.post(http.MethodPut, u.String(), param)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return a.handleError(resp)
+
 }
 
 func (a *App) handleError(resp *http.Response) error {

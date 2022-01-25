@@ -60,6 +60,15 @@ type ListEntriesResponse struct {
 	Entries []*model.Entry `json:"entries"`
 }
 
+type ListPipesResponse struct {
+	Total   int          `json:"total"`
+	Entries []model.Pipe `json:"entries"`
+}
+
+type UpdatePipesRequest struct {
+	Entries []model.Pipe `json:"entries"`
+}
+
 type NodeList []Node
 
 func (p NodeList) Len() int {
@@ -71,5 +80,19 @@ func (p NodeList) Less(i, j int) bool {
 }
 
 func (p NodeList) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+type PipeList []model.Pipe
+
+func (p PipeList) Len() int {
+	return len(p)
+}
+
+func (p PipeList) Less(i, j int) bool {
+	return strings.Compare(p[i].From, p[j].From) < 0
+}
+
+func (p PipeList) Swap(i, j int) {
 	p[i], p[j] = p[j], p[i]
 }

@@ -17,17 +17,26 @@ func (e *ErrProxyAbort) Error() string {
 	return e.err.Error()
 }
 
+type ErrPipeBroken struct {
+	err error
+}
+
+func (e *ErrPipeBroken) Error() string {
+	return e.err.Error()
+}
+
 type ChanProxy struct {
-	router     map[string]endpoint
-	timeout    time.Duration
-	brokenPipe map[string]string
+	router      map[string]endpoint
+	timeout     time.Duration
+	brokenPipes map[string]map[string]bool
 	sync.RWMutex
 }
 
 func NewChanProxy(nodes []raft.Node, timeout time.Duration) *ChanProxy {
 	proxy := &ChanProxy{
-		router:  make(map[string]endpoint),
-		timeout: timeout,
+		router:      make(map[string]endpoint),
+		timeout:     timeout,
+		brokenPipes: make(map[string]map[string]bool),
 	}
 
 	for _, node := range nodes {
@@ -49,9 +58,75 @@ func NewChanProxy(nodes []raft.Node, timeout time.Duration) *ChanProxy {
 	return proxy
 }
 
-func (c *ChanProxy) BrokenPipes() [][]string
+func (c *ChanProxy) BrokenPipes() []model.Pipe {
+	pipes := make([]model.Pipe, 0)
+
+	c.RLock()
+	defer c.RUnlock()
+
+	for from, v := range c.brokenPipes {
+		for to := range v {
+			pipes = append(pipes, model.Pipe{From: from, To: to, State: model.StatePipe_broken})
+		}
+	}
+	return pipes
+}
+
+func (c *ChanProxy) SetPipeStates(pipes []model.Pipe) error {
+	for _, p := range pipes {
+		_, okFrom := c.router[p.From]
+		_, okTo := c.router[p.To]
+		if !okFrom {
+			return fmt.Errorf("node %s not exists", p.From)
+		}
+		if !okTo {
+			return fmt.Errorf("node %s not exists", p.To)
+		}
+	}
+
+	c.Lock()
+	defer c.Unlock()
+
+	for _, p := range pipes {
+		if p.State == model.StatePipe_broken {
+			v := c.brokenPipes[p.From]
+			if v == nil {
+				v = make(map[string]bool)
+				c.brokenPipes[p.From] = v
+			}
+			v[p.To] = true
+		} else {
+			v := c.brokenPipes[p.From]
+			if v != nil && v[p.To] {
+				delete(v, p.To)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *ChanProxy) CheckPipeBroken(from, to string) error {
+	c.RLock()
+	defer c.RUnlock()
+
+	v := c.brokenPipes[from]
+	if v == nil {
+		return nil
+	}
+
+	if v[to] {
+		return &ErrPipeBroken{fmt.Errorf("pipe from %s to %s is broken", from, to)}
+	}
+
+	return nil
+}
 
 func (c *ChanProxy) Send(from, to string, request interface{}, abort chan bool) (model.Response, error) {
+	if err := c.CheckPipeBroken(from, to); err != nil {
+		return model.Response{}, err
+	}
+
 	e, ok := c.router[to]
 	if !ok {
 		return model.Response{}, fmt.Errorf("node with id %v not exist", to)

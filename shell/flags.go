@@ -1,14 +1,12 @@
 package shell
 
 import (
-	"fmt"
-
 	"github.com/urfave/cli"
 )
 
 var HTTPHostFlag = cli.StringFlag{
 	Name:     "host",
-	Usage:    fmt.Sprintf("raft server host"),
+	Usage:    "raft server host",
 	Required: false,
 	Value:    "localhost",
 }

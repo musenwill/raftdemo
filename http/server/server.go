@@ -260,3 +260,52 @@ func Ping(ctx *gin.Context) {
 
 	ctx.JSON(200, result)
 }
+
+type ProxyServer struct {
+	ProxyMgr *mgr.ProxyMgr
+}
+
+func (s *ProxyServer) Get(ctx *gin.Context) {
+	var httpErr *error2.HttpError
+	defer func() {
+		if httpErr != nil {
+			ctx.JSON(httpErr.GetStatusCode(), httpErr)
+		}
+	}()
+
+	result, httpErr := s.ProxyMgr.Get()
+	if httpErr != nil {
+		return
+	}
+
+	ctx.JSON(200, result)
+}
+
+func (s *ProxyServer) Update(ctx *gin.Context) {
+	var httpErr *error2.HttpError
+	defer func() {
+		if httpErr != nil {
+			ctx.JSON(httpErr.GetStatusCode(), httpErr)
+		}
+	}()
+
+	var param types.UpdatePipesRequest
+	err := ctx.ShouldBind(&param)
+	if err != nil {
+		httpErr = error2.ParamError(err)
+		return
+	}
+
+	httpErr = s.ProxyMgr.Update(param.Entries)
+	if httpErr != nil {
+		return
+	}
+
+	ctx.JSON(200, nil)
+}
+
+func (s *ProxyServer) Register(router *gin.Engine) {
+	g := router.Group("/proxy")
+	g.GET("", s.Get)
+	g.PUT("", s.Update)
+}
