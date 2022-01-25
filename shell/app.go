@@ -384,13 +384,8 @@ func (a *App) SetPipe(stmt Statement) error {
 	u := a.url
 	u.Path = path.Join(u.Path, "proxy")
 
-	state, err := model.MapStatePipe(setPipeStmt.State)
-	if err != nil {
-		return err
-	}
-
 	param := types.UpdatePipesRequest{
-		Entries: []model.Pipe{{From: setPipeStmt.From, To: setPipeStmt.To, State: state}},
+		Entries: setPipeStmt.pipes,
 	}
 
 	resp, err := a.post(http.MethodPut, u.String(), param)

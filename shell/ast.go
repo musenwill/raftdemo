@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/musenwill/raftdemo/model"
 )
 
 const (
@@ -61,6 +63,10 @@ var tokenSet = map[string]bool{
 	"HELP":   true,
 	"QUIT":   true,
 	"EXIT":   true,
+}
+
+func IsComma(word string) bool {
+	return strings.TrimSpace(word) == ","
 }
 
 func IsToken(word string) bool {
@@ -333,9 +339,7 @@ func (s *ShowPipesStatement) Help() string {
 }
 
 type SetPipeStatement struct {
-	From  string
-	To    string
-	State string
+	pipes []model.Pipe
 }
 
 func (s *SetPipeStatement) GetName() string {
@@ -343,11 +347,20 @@ func (s *SetPipeStatement) GetName() string {
 }
 
 func (s *SetPipeStatement) String() string {
-	return fmt.Sprintf(`%s FROM %s TO %s %s`, s.GetName(), s.From, s.To, s.State)
+	var ss string
+
+	for i, p := range s.pipes {
+		ss += fmt.Sprintf("FROM %s TO %s %s", p.From, p.To, p.State.String())
+		if i+1 != len(s.pipes) {
+			ss += " , "
+		}
+	}
+
+	return fmt.Sprintf(`%s %s`, s.GetName(), ss)
 }
 
 func (s *SetPipeStatement) Help() string {
-	return fmt.Sprintf(`%s FROM <nodeID> TO <nodeID> <ok/broken>`, s.GetName())
+	return fmt.Sprintf(`%s FROM <nodeID> TO <nodeID> <ok/broken> [, FROM <nodeID> TO <nodeID> <ok/broken>]`, s.GetName())
 }
 
 type WhereStatement struct {
@@ -752,42 +765,64 @@ func (p *Parser) parseWriteLog() (Statement, error) {
 func (p *Parser) parseSetPipe() (Statement, error) {
 	stmt := &SetPipeStatement{}
 
-	pos, token, err := p.scanner.GetToken()
-	if err != nil {
-		return stmt, err
-	}
-	if token != FROM {
-		return stmt, p.error(pos, []string{FROM}, token)
+	for {
+		pipe := model.Pipe{}
+
+		pos, token, err := p.scanner.GetToken()
+		if err != nil {
+			return stmt, err
+		}
+		if token != FROM {
+			return stmt, p.error(pos, []string{FROM}, token)
+		}
+
+		_, from, err := p.scanner.GetString()
+		if err != nil {
+			return stmt, err
+		}
+		pipe.From = from
+
+		pos, token, err = p.scanner.GetToken()
+		if err != nil {
+			return stmt, err
+		}
+		if token != TO {
+			return stmt, p.error(pos, []string{TO}, token)
+		}
+
+		_, to, err := p.scanner.GetString()
+		if err != nil {
+			return stmt, err
+		}
+		pipe.To = to
+
+		_, state, err := p.scanner.GetString()
+		if err != nil {
+			return stmt, err
+		}
+		pipeState, err := model.MapStatePipe(state)
+		if err != nil {
+			return stmt, err
+		}
+		pipe.State = pipeState
+
+		stmt.pipes = append(stmt.pipes, pipe)
+
+		pos, word, err := p.scanner.Next()
+		if err != nil {
+			return stmt, err
+		}
+
+		if word == EOF {
+			break
+		}
+		if IsComma(word) {
+			continue
+		}
+		return stmt, p.error(pos, []string{EOF, ","}, word)
 	}
 
-	_, from, err := p.scanner.GetString()
-	if err != nil {
-		return stmt, err
-	}
-	stmt.From = from
-
-	pos, token, err = p.scanner.GetToken()
-	if err != nil {
-		return stmt, err
-	}
-	if token != TO {
-		return stmt, p.error(pos, []string{TO}, token)
-	}
-
-	_, to, err := p.scanner.GetString()
-	if err != nil {
-		return stmt, err
-	}
-	stmt.To = to
-
-	_, state, err := p.scanner.GetString()
-	if err != nil {
-		return stmt, err
-	}
-	stmt.State = state
-
-	_, _, err = p.scanner.GetEOF()
-	return stmt, err
+	return stmt, nil
 }
 
 func (p *Parser) error(pos int, expect []string, got string) error {
