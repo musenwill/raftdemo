@@ -100,6 +100,8 @@ func (a *App) Help(stmt Statement) error {
 		&SetLogLevelStatement{},
 		&ShowLogsStatement{},
 		&WriteLogStatement{},
+		&ShowPipesStatement{},
+		&SetPipeStatement{},
 	}
 
 	for _, h := range helpers {
