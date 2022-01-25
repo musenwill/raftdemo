@@ -84,7 +84,7 @@ func (m *NodeMgr) GetLeader() (raft.NodeInstance, *error2.HttpError) {
 	var leaders []raft.NodeInstance
 
 	for _, n := range m.Ctx.Instances {
-		if n.GetState() == model.StateRole_Leader {
+		if n.GetState() == model.StateRole_leader {
 			leaders = append(leaders, n)
 		}
 	}

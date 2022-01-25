@@ -57,7 +57,7 @@ func (c *Candidate) OnAppendEntries(param model.AppendEntries) model.Response {
 		return model.Response{Term: c.node.GetTerm(), Success: false}
 	}
 
-	c.node.SwitchStateTo(model.StateRole_Follower)
+	c.node.SwitchStateTo(model.StateRole_follower)
 	return c.node.OnAppendEntries(param)
 }
 
@@ -66,7 +66,7 @@ func (c *Candidate) OnRequestVote(param model.RequestVote) model.Response {
 		return model.Response{Term: c.node.GetTerm(), Success: false}
 	}
 
-	c.node.SwitchStateTo(model.StateRole_Follower)
+	c.node.SwitchStateTo(model.StateRole_follower)
 	return c.node.OnRequestVote(param)
 }
 
@@ -79,7 +79,7 @@ func (c *Candidate) OnTimeout() {
 	go func() {
 		count := 0
 		if count >= int(c.cfg.Nodes)/2 {
-			c.node.SwitchStateTo(model.StateRole_Leader)
+			c.node.SwitchStateTo(model.StateRole_leader)
 			return
 		}
 		for {
@@ -89,7 +89,7 @@ func (c *Candidate) OnTimeout() {
 			case <-votesC:
 				count++
 				if count >= int(c.cfg.Nodes)/2 {
-					c.node.SwitchStateTo(model.StateRole_Leader)
+					c.node.SwitchStateTo(model.StateRole_leader)
 					return
 				}
 			}
@@ -111,7 +111,7 @@ func (c *Candidate) OnTimeout() {
 
 	handleResponseF := func(nodeID string, response model.Response) {
 		if response.Term > term {
-			c.node.SwitchStateTo(model.StateRole_Follower)
+			c.node.SwitchStateTo(model.StateRole_follower)
 		}
 		if response.Success {
 			c.printLog(c.logger.Info, "receive vote", zap.String("voter", nodeID))
@@ -123,7 +123,7 @@ func (c *Candidate) OnTimeout() {
 }
 
 func (c *Candidate) State() model.StateRole {
-	return model.StateRole_Candidate
+	return model.StateRole_candidate
 }
 
 func (c *Candidate) printLog(fn func(msg string, fields ...zap.Field), msg string, fields ...zap.Field) {

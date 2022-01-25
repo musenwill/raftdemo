@@ -107,11 +107,11 @@ func (f *Follower) OnRequestVote(param model.RequestVote) model.Response {
 }
 
 func (f *Follower) OnTimeout() {
-	f.node.SwitchStateTo(model.StateRole_Candidate)
+	f.node.SwitchStateTo(model.StateRole_candidate)
 }
 
 func (f *Follower) State() model.StateRole {
-	return model.StateRole_Follower
+	return model.StateRole_follower
 }
 
 func (f *Follower) printLog(fn func(msg string, fields ...zap.Field), msg string, fields ...zap.Field) {

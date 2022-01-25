@@ -294,13 +294,13 @@ func (s *Instance) SwitchStateTo(state model.StateRole) error {
 	var st raft.State
 
 	switch state {
-	case model.StateRole_Leader:
+	case model.StateRole_leader:
 		st = NewLeader(s, s.nodes, s.cfg, s.logger)
-	case model.StateRole_Follower:
+	case model.StateRole_follower:
 		st = NewFollower(s, s.cfg, s.logger)
-	case model.StateRole_Candidate:
+	case model.StateRole_candidate:
 		st = NewCandidate(s, s.cfg, s.logger)
-	case model.StateRole_Dummy:
+	case model.StateRole_dummy:
 		st = &Dummy{}
 	default:
 		return fmt.Errorf("unsupported state %s", state)

@@ -81,12 +81,12 @@ func (s *Leader) Leave() {
 }
 
 func (s *Leader) State() model.StateRole {
-	return model.StateRole_Leader
+	return model.StateRole_leader
 }
 
 func (s *Leader) OnAppendEntries(param model.AppendEntries) model.Response {
 	if param.Term > s.node.GetTerm() {
-		s.node.SwitchStateTo(model.StateRole_Follower)
+		s.node.SwitchStateTo(model.StateRole_follower)
 		return s.node.OnAppendEntries(param)
 	}
 
@@ -96,7 +96,7 @@ func (s *Leader) OnAppendEntries(param model.AppendEntries) model.Response {
 
 func (s *Leader) OnRequestVote(param model.RequestVote) model.Response {
 	if param.Term > s.node.GetTerm() {
-		s.node.SwitchStateTo(model.StateRole_Follower)
+		s.node.SwitchStateTo(model.StateRole_follower)
 		return s.node.OnRequestVote(param)
 	}
 
@@ -119,7 +119,7 @@ func (s *Leader) notifyWinVote() {
 	}
 	handleResponseF := func(nodeID string, response model.Response) {
 		if response.Term > term {
-			s.node.SwitchStateTo(model.StateRole_Follower)
+			s.node.SwitchStateTo(model.StateRole_follower)
 		}
 	}
 
@@ -165,7 +165,7 @@ func (s *Leader) getRequest(nodeID string) (interface{}, error) {
 
 func (s *Leader) handleResponse(nodeID string, response model.Response) {
 	if response.Term > s.node.GetTerm() {
-		s.node.SwitchStateTo(model.StateRole_Follower)
+		s.node.SwitchStateTo(model.StateRole_follower)
 		return
 	}
 

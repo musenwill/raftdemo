@@ -19,5 +19,5 @@ func (d *Dummy) OnRequestVote(param model.RequestVote) model.Response {
 func (d *Dummy) OnTimeout() {}
 
 func (d *Dummy) State() model.StateRole {
-	return model.StateRole_Dummy
+	return model.StateRole_dummy
 }
