@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/musenwill/raftdemo/model"
 )
 
 const (
@@ -23,6 +25,10 @@ const (
 	AND    = "AND"
 	INDEX  = "INDEX"
 	WRITE  = "WRITE"
+	PIPE   = "PIPE"
+	PIPES  = "PIPES"
+	FROM   = "FROM"
+	TO     = "TO"
 	HELP   = "HELP"
 	QUIT   = "QUIT"
 	EXIT   = "EXIT"
@@ -50,9 +56,17 @@ var tokenSet = map[string]bool{
 	"AND":    true,
 	"INDEX":  true,
 	"WRITE":  true,
+	"PIPE":   true,
+	"PIPES":  true,
+	"FROM":   true,
+	"TO":     true,
 	"HELP":   true,
 	"QUIT":   true,
 	"EXIT":   true,
+}
+
+func IsComma(word string) bool {
+	return strings.TrimSpace(word) == ","
 }
 
 func IsToken(word string) bool {
@@ -309,6 +323,46 @@ func (s *WriteLogStatement) Help() string {
 	return fmt.Sprintf("%s <data>", s.GetName())
 }
 
+type ShowPipesStatement struct {
+}
+
+func (s *ShowPipesStatement) GetName() string {
+	return "SHOW PIPES"
+}
+
+func (s *ShowPipesStatement) String() string {
+	return s.GetName()
+}
+
+func (s *ShowPipesStatement) Help() string {
+	return s.GetName()
+}
+
+type SetPipeStatement struct {
+	pipes []model.Pipe
+}
+
+func (s *SetPipeStatement) GetName() string {
+	return "SET PIPE"
+}
+
+func (s *SetPipeStatement) String() string {
+	var ss string
+
+	for i, p := range s.pipes {
+		ss += fmt.Sprintf("FROM %s TO %s %s", p.From, p.To, p.State.String())
+		if i+1 != len(s.pipes) {
+			ss += " , "
+		}
+	}
+
+	return fmt.Sprintf(`%s %s`, s.GetName(), ss)
+}
+
+func (s *SetPipeStatement) Help() string {
+	return fmt.Sprintf(`%s FROM <nodeID> TO <nodeID> <ok/broken> [, FROM <nodeID> TO <nodeID> <ok/broken>]`, s.GetName())
+}
+
 type WhereStatement struct {
 	Name      string
 	NodeID    string
@@ -550,6 +604,8 @@ func (p *Parser) Parse() (Statement, error) {
 			return p.parseShowConfig()
 		case LOGS:
 			return p.parseShowLogs()
+		case PIPES:
+			return &ShowPipesStatement{}, nil
 		default:
 			return nil, p.error(pos, []string{NODES, LEADER, CONFIG, LOGS}, token)
 		}
@@ -563,6 +619,8 @@ func (p *Parser) Parse() (Statement, error) {
 			return p.parseSetNode()
 		case LOG:
 			return p.parseSetLogLevel()
+		case PIPE:
+			return p.parseSetPipe()
 		default:
 			return nil, p.error(pos, []string{NODE, LOG}, token)
 		}
@@ -653,6 +711,9 @@ func (p *Parser) parseSetNode() (Statement, error) {
 	stmt.NodeID = nodeID
 
 	pos, token, err := p.scanner.GetToken()
+	if err != nil {
+		return stmt, err
+	}
 	if token != STATE {
 		return stmt, p.error(pos, []string{STATE}, token)
 	}
@@ -671,6 +732,9 @@ func (p *Parser) parseSetLogLevel() (Statement, error) {
 	stmt := &SetLogLevelStatement{}
 
 	pos, token, err := p.scanner.GetToken()
+	if err != nil {
+		return stmt, err
+	}
 	if token != LEVEL {
 		return stmt, p.error(pos, []string{LEVEL}, token)
 	}
@@ -696,6 +760,69 @@ func (p *Parser) parseWriteLog() (Statement, error) {
 
 	_, _, err = p.scanner.GetEOF()
 	return stmt, err
+}
+
+func (p *Parser) parseSetPipe() (Statement, error) {
+	stmt := &SetPipeStatement{}
+
+	for {
+		pipe := model.Pipe{}
+
+		pos, token, err := p.scanner.GetToken()
+		if err != nil {
+			return stmt, err
+		}
+		if token != FROM {
+			return stmt, p.error(pos, []string{FROM}, token)
+		}
+
+		_, from, err := p.scanner.GetString()
+		if err != nil {
+			return stmt, err
+		}
+		pipe.From = from
+
+		pos, token, err = p.scanner.GetToken()
+		if err != nil {
+			return stmt, err
+		}
+		if token != TO {
+			return stmt, p.error(pos, []string{TO}, token)
+		}
+
+		_, to, err := p.scanner.GetString()
+		if err != nil {
+			return stmt, err
+		}
+		pipe.To = to
+
+		_, state, err := p.scanner.GetString()
+		if err != nil {
+			return stmt, err
+		}
+		pipeState, err := model.MapStatePipe(state)
+		if err != nil {
+			return stmt, err
+		}
+		pipe.State = pipeState
+
+		stmt.pipes = append(stmt.pipes, pipe)
+
+		pos, word, err := p.scanner.Next()
+		if err != nil {
+			return stmt, err
+		}
+
+		if word == EOF {
+			break
+		}
+		if IsComma(word) {
+			continue
+		}
+		return stmt, p.error(pos, []string{EOF, ","}, word)
+	}
+
+	return stmt, nil
 }
 
 func (p *Parser) error(pos int, expect []string, got string) error {

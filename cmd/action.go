@@ -35,7 +35,7 @@ func start(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	srv, err := startHTTP(instances, cfg)
+	srv, err := startHTTP(instances, proxy, cfg)
 	if err != nil {
 		handleExit(true, instances, nil)
 		return err
@@ -73,8 +73,8 @@ func startRaft(nodes []raft.Node, proxy proxy.Proxy, cfg *raft.Config) (instance
 	return instances, nil
 }
 
-func startHTTP(instaces map[string]raft.NodeInstance, cfg *config.Config) (*http.Server, error) {
-	handler := server.NewHandler(instaces, cfg)
+func startHTTP(instaces map[string]raft.NodeInstance, proxy proxy.Proxy, cfg *config.Config) (*http.Server, error) {
+	handler := server.NewHandler(instaces, proxy, cfg)
 	srv := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.HTTP.HttpHost, cfg.HTTP.HttpPort),
 		Handler: handler,

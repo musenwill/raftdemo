@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/musenwill/raftdemo/config"
-	"github.com/musenwill/raftdemo/http/error"
 	error2 "github.com/musenwill/raftdemo/http/error"
 	"github.com/musenwill/raftdemo/log"
 )
@@ -18,7 +17,7 @@ func (m *CfgMgr) Get() (config.Config, *error2.HttpError) {
 	return *m.Ctx.Cfg, nil
 }
 
-func (m *CfgMgr) Update(level string) *error.HttpError {
+func (m *CfgMgr) Update(level string) *error2.HttpError {
 	levelUP := strings.ToUpper(level)
 	logLevel := log.LogLevel(levelUP)
 	if !logLevel.Valid() {
@@ -27,7 +26,7 @@ func (m *CfgMgr) Update(level string) *error.HttpError {
 
 	err := m.Ctx.Cfg.Logger.SetLevel(logLevel)
 	if err != nil {
-		return error.ServerError(err)
+		return error2.ServerError(err)
 	}
 	m.Ctx.Cfg.Raft.LogLevel = logLevel
 

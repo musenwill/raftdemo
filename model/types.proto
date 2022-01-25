@@ -15,6 +15,11 @@ enum StateRole {
     leader = 4;
 }
 
+enum StatePipe {
+  ok = 0;
+  broken = 1;
+}
+
 message Entry {
     int32 version = 1;
     int64 id = 2;
@@ -42,4 +47,10 @@ message RequestVote {
 message Response {
 	int64 term = 1;
 	bool success = 2;
+}
+
+message Pipe {
+  string from = 1;
+  string to = 2;
+  StatePipe state = 3;
 }

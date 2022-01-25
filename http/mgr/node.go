@@ -1,7 +1,6 @@
 package mgr
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 
@@ -75,7 +74,7 @@ func (m *NodeMgr) Update(nodeID string, state string) (types.Node, *error2.HttpE
 func (m *NodeMgr) GetNode(nodeID string) (raft.NodeInstance, *error2.HttpError) {
 	node, ok := m.Ctx.Instances[nodeID]
 	if !ok {
-		return nil, error2.DataNotFoundError(errors.New(fmt.Sprintf("node %s not found", nodeID)))
+		return nil, error2.DataNotFoundError(fmt.Errorf("node %s not found", nodeID))
 	}
 	return node, nil
 }
@@ -84,7 +83,7 @@ func (m *NodeMgr) GetLeader() (raft.NodeInstance, *error2.HttpError) {
 	var leaders []raft.NodeInstance
 
 	for _, n := range m.Ctx.Instances {
-		if n.GetState() == model.StateRole_Leader {
+		if n.GetState() == model.StateRole_leader {
 			leaders = append(leaders, n)
 		}
 	}
