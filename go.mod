@@ -3,7 +3,7 @@ module github.com/musenwill/raftdemo
 go 1.12
 
 require (
-	github.com/gin-gonic/gin v1.5.0
+	github.com/gin-gonic/gin v1.7.7
 	github.com/golang/protobuf v1.4.1
 	github.com/mattn/go-runewidth v0.0.3
 	github.com/peterh/liner v1.2.1
